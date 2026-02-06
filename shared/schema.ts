@@ -43,7 +43,7 @@ export const vehicles = pgTable("vehicles", {
   saleDate: timestamp("sale_date"), // Date when vehicle was sold
   buyerId: integer("buyer_id").references(() => people.id), // Client who bought the vehicle
   status: text("status", { enum: VEHICLE_STATUS }).default("Aguardando Preparação").notNull(),
-  ownerId: integer("owner_id").references(() => people.id).notNull(),
+  ownerId: integer("owner_id").references(() => people.id),
   entryDate: timestamp("entry_date").defaultNow(),
   notes: text("notes"),
 });
@@ -69,6 +69,14 @@ export const STORE_EXPENSE_CATEGORIES = [
   "Salários",
   "Outros",
 ] as const;
+
+export const vehicleImages = pgTable("vehicle_images", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: "cascade" }).notNull(),
+  fileName: text("file_name").notNull(),
+  filePath: text("file_path").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 export const storeExpenses = pgTable("store_expenses", {
   id: serial("id").primaryKey(),
@@ -103,12 +111,20 @@ export const expensesRelations = relations(expenses, ({ one }) => ({
   }),
 }));
 
+export const vehicleImagesRelations = relations(vehicleImages, ({ one }) => ({
+  vehicle: one(vehicles, {
+    fields: [vehicleImages.vehicleId],
+    references: [vehicles.id],
+  }),
+}));
+
 // === BASE SCHEMAS ===
 
 export const insertPersonSchema = createInsertSchema(people).omit({ id: true, createdAt: true });
 export const insertVehicleSchema = createInsertSchema(vehicles).omit({ id: true, entryDate: true, saleDate: true });
 export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, date: true });
 export const insertStoreExpenseSchema = createInsertSchema(storeExpenses).omit({ id: true, date: true });
+export const insertVehicleImageSchema = createInsertSchema(vehicleImages).omit({ id: true, createdAt: true });
 
 // === EXPLICIT API CONTRACT TYPES ===
 
@@ -116,6 +132,7 @@ export type Person = typeof people.$inferSelect;
 export type Vehicle = typeof vehicles.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type StoreExpense = typeof storeExpenses.$inferSelect;
+export type VehicleImage = typeof vehicleImages.$inferSelect;
 
 export type InsertPerson = z.infer<typeof insertPersonSchema>;
 export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
@@ -124,7 +141,7 @@ export type InsertStoreExpense = z.infer<typeof insertStoreExpenseSchema>;
 
 // With Relations
 export type VehicleWithDetails = Vehicle & {
-  owner: Person;
+  owner: Person | null;
   buyer: Person | null;
   expenses: Expense[];
 };

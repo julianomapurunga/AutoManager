@@ -20,6 +20,21 @@ Sistema para controle completo de veículos em pátio de loja, incluindo cadastr
 - 2026-02-06: Store expenses page (/store-expenses) with CRUD, category filtering, search
 - 2026-02-06: Store expenses integrated into dashboard stats and financial reports
 - 2026-02-06: Added "Despesas da Loja" navigation item to sidebar
+- 2026-02-06: Replaced Replit Auth with custom session-based auth (bcryptjs + express-session)
+- 2026-02-06: Created users table with username, password, phone, cpf, gender, role fields
+- 2026-02-06: User roles: Administrador (full access), Vendedor (no settings access)
+- 2026-02-06: Permission system: isAdmin middleware, frontend AdminRoute guard, sidebar filtering
+- 2026-02-06: Settings page (/settings): user management with CRUD, role assignment, admin-only access
+- 2026-02-06: Self-registration defaults to Vendedor role (only admins can assign roles)
+- 2026-02-06: Created Login and Register pages with form validation
+- 2026-02-06: Added CPF/phone formatting masks on registration form
+- 2026-02-06: Vehicle image attachments: upload multiple, gallery view, delete one/all, fullscreen preview
+- 2026-02-06: vehicleImages table (id, vehicleId FK cascade, fileName, filePath, createdAt)
+- 2026-02-06: Image upload via multer with 10MB limit, jpg/png/gif/webp filter
+- 2026-02-06: Vehicle owner (ownerId) made optional - can register vehicles without owner
+- 2026-02-06: CPF-based person lookup: type CPF to auto-search, register new person via dialog
+- 2026-02-06: VehicleForm and SellVehicleDialog use CPF lookup instead of select dropdowns
+- 2026-02-06: Added /api/people/search-by-document endpoint for CPF-based search
 
 ## Project Architecture
 
@@ -27,7 +42,7 @@ Sistema para controle completo de veículos em pátio de loja, incluindo cadastr
 - **Frontend:** React + TypeScript, Vite, Tailwind CSS, Shadcn/ui, Wouter (routing), TanStack Query
 - **Backend:** Express.js + TypeScript
 - **Database:** PostgreSQL (Neon) with Drizzle ORM
-- **Auth:** Replit Auth (OpenID Connect)
+- **Auth:** Custom session-based auth (bcryptjs + express-session + connect-pg-simple)
 
 ### Directory Structure
 ```
@@ -41,12 +56,13 @@ server/
   routes.ts          # API route handlers + seed data
   storage.ts         # DatabaseStorage class (CRUD operations)
   db.ts              # Database connection pool
-  replit_integrations/auth/  # Replit Auth module (do not modify)
+  replit_integrations/auth/  # Custom auth module (session-based login/register)
 
 client/src/
   App.tsx             # Main app with auth-gated routing
   pages/
-    LandingPage.tsx   # Public landing page
+    LoginPage.tsx     # Login page
+    RegisterPage.tsx  # Registration page with all user fields
     Dashboard.tsx     # Stats overview
     Vehicles.tsx      # Vehicle list
     VehicleDetails.tsx # Vehicle details + expenses
@@ -71,16 +87,20 @@ client/src/
 - **vehicles:** Vehicle records (plate, brand, model, color, year, price, salePrice, saleDate, buyerId, status, ownerId, entryDate)
 - **expenses:** Expenses per vehicle (description, amount, vehicleId)
 - **storeExpenses:** Store operational expenses (description, category, amount, date)
-- **users:** Auth users (managed by Replit Auth)
-- **sessions:** Session storage (managed by Replit Auth)
+- **users:** System users (id serial, username, password hash, firstName, lastName, phone, cpf, gender, role)
+- **sessions:** Session storage (express-session + connect-pg-simple)
 
 ### Key Enums
 - Vehicle brands: Toyota, Honda, Ford, Chevrolet, Volkswagen, Fiat, Hyundai, Renault, Nissan, Jeep, Outra
 - Vehicle status: Disponível, Vendido, Em Manutenção, Aguardando Preparação, Reservado
 - Person types: Proprietário, Cliente
 - Store expense categories: Aluguel, Internet, Água, Energia, Produto de Limpeza, Material de Escritório, Telefone, Seguro, Impostos, Salários, Outros
+- User roles: Administrador, Vendedor
+- Permissions: Administrador (full access), Vendedor (all except /settings)
 
 ### API Routes (all require authentication)
+- `GET/POST /api/users` - List/Create users (admin only)
+- `PUT/DELETE /api/users/:id` - Update/Delete users (admin only)
 - `GET/POST /api/people` - List/Create people
 - `GET/PUT/DELETE /api/people/:id` - Get/Update/Delete person
 - `GET /api/vehicles` - List vehicles (query: ?status=&search=&ownerId=)
@@ -98,10 +118,12 @@ client/src/
 All monetary values stored in cents (integer). Divide by 100 for display, format as BRL (R$).
 
 ### Auth Flow
-- Landing page shown for unauthenticated users
-- Login via `/api/login` (Replit Auth OIDC)
-- Logout via `/api/logout`
-- User info displayed in sidebar
+- Login/Register pages shown for unauthenticated users
+- Register via `POST /api/register` (username, password, firstName, lastName, phone, cpf, gender, role)
+- Login via `POST /api/login` (username + password, bcrypt verification)
+- Logout via `POST /api/logout` (session destroy)
+- Session stored in PostgreSQL via connect-pg-simple
+- User info + role badge displayed in sidebar
 
 ## User Preferences
 - Language: Portuguese (pt-BR)

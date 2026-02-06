@@ -1,21 +1,23 @@
 import { db } from "./db";
 import {
-  people, vehicles, expenses, storeExpenses,
+  people, vehicles, expenses, storeExpenses, vehicleImages,
   type Person, type InsertPerson,
   type Vehicle, type InsertVehicle, type VehicleWithDetails,
   type Expense, type InsertExpense,
-  type StoreExpense, type InsertStoreExpense
+  type StoreExpense, type InsertStoreExpense,
+  type VehicleImage
 } from "@shared/schema";
 import { eq, desc, and, sql, gte, lt, or, ilike } from "drizzle-orm";
 
 export interface IStorage {
   getPeople(type?: string): Promise<Person[]>;
   getPerson(id: number): Promise<Person | undefined>;
+  getPersonByDocument(document: string): Promise<Person | undefined>;
   createPerson(person: InsertPerson): Promise<Person>;
   updatePerson(id: number, person: Partial<InsertPerson>): Promise<Person>;
   deletePerson(id: number): Promise<void>;
 
-  getVehicles(filters?: { status?: string, ownerId?: number, search?: string }): Promise<(Vehicle & { owner: Person })[]>;
+  getVehicles(filters?: { status?: string, ownerId?: number, search?: string }): Promise<(Vehicle & { owner: Person | null })[]>;
   getVehicle(id: number): Promise<VehicleWithDetails | undefined>;
   getVehicleByPlate(plate: string): Promise<Vehicle | undefined>;
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
@@ -30,6 +32,11 @@ export interface IStorage {
   getStoreExpenses(): Promise<StoreExpense[]>;
   createStoreExpense(expense: InsertStoreExpense): Promise<StoreExpense>;
   deleteStoreExpense(id: number): Promise<void>;
+
+  getVehicleImages(vehicleId: number): Promise<VehicleImage[]>;
+  createVehicleImage(vehicleId: number, fileName: string, filePath: string): Promise<VehicleImage>;
+  deleteVehicleImage(id: number): Promise<VehicleImage | undefined>;
+  deleteAllVehicleImages(vehicleId: number): Promise<VehicleImage[]>;
 
   getDashboardStats(): Promise<{
     totalVehicles: number;
@@ -65,6 +72,14 @@ export class DatabaseStorage implements IStorage {
     return person;
   }
 
+  async getPersonByDocument(document: string): Promise<Person | undefined> {
+    const cleaned = document.replace(/\D/g, "");
+    const [person] = await db.select().from(people).where(
+      sql`REPLACE(REPLACE(REPLACE(${people.document}, '.', ''), '-', ''), '/', '') = ${cleaned}`
+    );
+    return person;
+  }
+
   async createPerson(insertPerson: InsertPerson): Promise<Person> {
     const [person] = await db.insert(people).values(insertPerson).returning();
     return person;
@@ -83,7 +98,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(people).where(eq(people.id, id));
   }
 
-  async getVehicles(filters?: { status?: string, ownerId?: number, search?: string }): Promise<(Vehicle & { owner: Person })[]> {
+  async getVehicles(filters?: { status?: string, ownerId?: number, search?: string }): Promise<(Vehicle & { owner: Person | null })[]> {
     const conditions = [];
     if (filters?.status) conditions.push(eq(vehicles.status, filters.status));
     if (filters?.ownerId) conditions.push(eq(vehicles.ownerId, filters.ownerId));
@@ -104,7 +119,7 @@ export class DatabaseStorage implements IStorage {
       owner: people,
     })
     .from(vehicles)
-    .innerJoin(people, eq(vehicles.ownerId, people.id))
+    .leftJoin(people, eq(vehicles.ownerId, people.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(vehicles.entryDate));
 
@@ -117,7 +132,7 @@ export class DatabaseStorage implements IStorage {
       owner: people,
     })
     .from(vehicles)
-    .innerJoin(people, eq(vehicles.ownerId, people.id))
+    .leftJoin(people, eq(vehicles.ownerId, people.id))
     .where(eq(vehicles.id, id));
 
     if (!result) return undefined;
@@ -203,6 +218,26 @@ export class DatabaseStorage implements IStorage {
 
   async deleteStoreExpense(id: number): Promise<void> {
     await db.delete(storeExpenses).where(eq(storeExpenses.id, id));
+  }
+
+  async getVehicleImages(vehicleId: number): Promise<VehicleImage[]> {
+    return await db.select().from(vehicleImages)
+      .where(eq(vehicleImages.vehicleId, vehicleId))
+      .orderBy(desc(vehicleImages.createdAt));
+  }
+
+  async createVehicleImage(vehicleId: number, fileName: string, filePath: string): Promise<VehicleImage> {
+    const [image] = await db.insert(vehicleImages).values({ vehicleId, fileName, filePath }).returning();
+    return image;
+  }
+
+  async deleteVehicleImage(id: number): Promise<VehicleImage | undefined> {
+    const [deleted] = await db.delete(vehicleImages).where(eq(vehicleImages.id, id)).returning();
+    return deleted;
+  }
+
+  async deleteAllVehicleImages(vehicleId: number): Promise<VehicleImage[]> {
+    return await db.delete(vehicleImages).where(eq(vehicleImages.vehicleId, vehicleId)).returning();
   }
 
   async getDashboardStats() {

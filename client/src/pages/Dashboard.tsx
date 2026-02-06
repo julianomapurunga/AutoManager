@@ -142,7 +142,7 @@ export default function Dashboard() {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Proprietário: {vehicle.owner.name}
+                      {vehicle.owner ? `Proprietário: ${vehicle.owner.name}` : "Sem proprietário"}
                     </p>
                   </CardContent>
                 </Card>

@@ -1,5 +1,6 @@
 import { useVehicle, useUpdateVehicle, useDeleteVehicle } from "@/hooks/use-vehicles";
 import { useCreateExpense, useDeleteExpense } from "@/hooks/use-expenses";
+import { useVehicleImages, useUploadVehicleImages, useDeleteVehicleImage, useDeleteAllVehicleImages } from "@/hooks/use-vehicle-images";
 import { useRoute, useLocation } from "wouter";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -10,13 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Trash2, Edit2, Plus, Calendar, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Trash2, Edit2, Plus, Calendar, ShoppingCart, ImagePlus, X, Trash, Loader2 } from "lucide-react";
 import { VEHICLE_STATUS } from "@shared/schema";
 import { VehicleForm } from "@/components/forms/VehicleForm";
 import { SellVehicleDialog } from "@/components/forms/SellVehicleDialog";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useToast } from "@/hooks/use-toast";
 
 export default function VehicleDetails() {
   const [match, params] = useRoute("/vehicles/:id");
@@ -25,15 +27,24 @@ export default function VehicleDetails() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
   const [isSellOpen, setIsSellOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const [expenseDesc, setExpenseDesc] = useState("");
   const [expenseAmount, setExpenseAmount] = useState("");
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const { data: vehicle, isLoading } = useVehicle(id);
   const updateMutation = useUpdateVehicle();
   const deleteMutation = useDeleteVehicle();
   const expenseMutation = useCreateExpense();
   const deleteExpenseMutation = useDeleteExpense();
+
+  const { data: images = [], isLoading: imagesLoading } = useVehicleImages(id);
+  const uploadMutation = useUploadVehicleImages();
+  const deleteImageMutation = useDeleteVehicleImage();
+  const deleteAllImagesMutation = useDeleteAllVehicleImages();
 
   if (isLoading) return <div className="p-8">Carregando detalhes...</div>;
   if (!vehicle) return <div className="p-8">Veículo não encontrado.</div>;
@@ -64,6 +75,32 @@ export default function VehicleDetails() {
         setExpenseAmount("");
       }
     });
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    uploadMutation.mutate({ vehicleId: id, files }, {
+      onSuccess: () => {
+        toast({ title: `${files.length} imagem(ns) anexada(s) com sucesso!` });
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      },
+      onError: (err: any) => {
+        toast({ title: "Erro ao anexar imagens", description: err.message, variant: "destructive" });
+      },
+    });
+  };
+
+  const handleDeleteImage = (imageId: number) => {
+    deleteImageMutation.mutate({ imageId, vehicleId: id });
+  };
+
+  const handleDeleteAllImages = () => {
+    if (confirm("Tem certeza que deseja remover todas as imagens deste veículo?")) {
+      deleteAllImagesMutation.mutate(id, {
+        onSuccess: () => toast({ title: "Todas as imagens foram removidas." }),
+      });
+    }
   };
 
   const formatCurrency = (val: number) =>
@@ -140,6 +177,7 @@ export default function VehicleDetails() {
                   ownerId: vehicle.ownerId,
                   notes: vehicle.notes ?? undefined,
                 }}
+                defaultOwner={vehicle.owner}
                 onSubmit={handleUpdate}
                 isPending={updateMutation.isPending}
                 onCancel={() => setIsEditOpen(false)}
@@ -174,8 +212,10 @@ export default function VehicleDetails() {
               </div>
               <div>
                 <Label className="text-muted-foreground">Proprietário</Label>
-                <div className="font-medium text-lg">{vehicle.owner.name}</div>
-                <div className="text-sm text-muted-foreground">{vehicle.owner.phone}</div>
+                <div className="font-medium text-lg">{vehicle.owner?.name || "Não informado"}</div>
+                {vehicle.owner?.phone && (
+                  <div className="text-sm text-muted-foreground">{vehicle.owner.phone}</div>
+                )}
               </div>
               <div>
                 <Label className="text-muted-foreground">Data de Entrada</Label>
@@ -334,6 +374,107 @@ export default function VehicleDetails() {
           </Card>
         </div>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle>Fotos do Veículo</CardTitle>
+          <div className="flex items-center gap-2 flex-wrap">
+            {images.length > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteAllImages}
+                disabled={deleteAllImagesMutation.isPending}
+                data-testid="button-delete-all-images"
+              >
+                <Trash className="w-4 h-4 mr-1" />
+                Remover Todas
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadMutation.isPending}
+              data-testid="button-add-images"
+            >
+              {uploadMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <ImagePlus className="w-4 h-4 mr-1" />
+              )}
+              {uploadMutation.isPending ? "Enviando..." : "Anexar Imagens"}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              multiple
+              className="hidden"
+              onChange={handleFileSelect}
+              data-testid="input-file-images"
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {imagesLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : images.length === 0 ? (
+            <div
+              className="text-center py-12 text-sm text-muted-foreground bg-muted/30 rounded-md border border-dashed border-border cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+              data-testid="dropzone-images"
+            >
+              <ImagePlus className="w-10 h-10 mx-auto mb-3 text-muted-foreground/50" />
+              <p>Nenhuma foto anexada.</p>
+              <p className="text-xs mt-1">Clique aqui ou no botão acima para adicionar fotos.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {images.map((img) => (
+                <div
+                  key={img.id}
+                  className="relative group aspect-square rounded-md overflow-visible"
+                  data-testid={`image-item-${img.id}`}
+                >
+                  <img
+                    src={img.filePath}
+                    alt={img.fileName}
+                    className="w-full h-full object-cover rounded-md cursor-pointer"
+                    onClick={() => setPreviewImage(img.filePath)}
+                    data-testid={`image-preview-${img.id}`}
+                  />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => handleDeleteImage(img.id)}
+                    disabled={deleteImageMutation.isPending}
+                    data-testid={`button-delete-image-${img.id}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {previewImage && (
+        <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
+          <DialogContent className="max-w-4xl p-2">
+            <img
+              src={previewImage}
+              alt="Foto do veículo"
+              className="w-full h-auto max-h-[80vh] object-contain rounded-md"
+              data-testid="image-fullscreen"
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       <SellVehicleDialog
         vehicleId={id}

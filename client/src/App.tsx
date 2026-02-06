@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { useState } from "react";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -11,9 +12,19 @@ import VehicleDetails from "@/pages/VehicleDetails";
 import People from "@/pages/People";
 import StoreExpenses from "@/pages/StoreExpenses";
 import Financial from "@/pages/Financial";
-import LandingPage from "@/pages/LandingPage";
+import Settings from "@/pages/Settings";
+import LoginPage from "@/pages/LoginPage";
+import RegisterPage from "@/pages/RegisterPage";
 import NotFound from "@/pages/not-found";
 import { Skeleton } from "@/components/ui/skeleton";
+
+function AdminRoute({ component: Component }: { component: () => JSX.Element }) {
+  const { user } = useAuth();
+  if (user?.role !== "Administrador") {
+    return <Redirect to="/" />;
+  }
+  return <Component />;
+}
 
 function AuthenticatedRouter() {
   return (
@@ -30,6 +41,7 @@ function AuthenticatedRouter() {
               <Route path="/people" component={People} />
               <Route path="/store-expenses" component={StoreExpenses} />
               <Route path="/financial" component={Financial} />
+              <Route path="/settings">{() => <AdminRoute component={Settings} />}</Route>
               <Route component={NotFound} />
             </Switch>
           </div>
@@ -51,11 +63,20 @@ function LoadingScreen() {
   );
 }
 
+function AuthPages() {
+  const [page, setPage] = useState<"login" | "register">("login");
+
+  if (page === "register") {
+    return <RegisterPage onSwitchToLogin={() => setPage("login")} />;
+  }
+  return <LoginPage onSwitchToRegister={() => setPage("register")} />;
+}
+
 function AppContent() {
   const { user, isLoading } = useAuth();
 
   if (isLoading) return <LoadingScreen />;
-  if (!user) return <LandingPage />;
+  if (!user) return <AuthPages />;
   return <AuthenticatedRouter />;
 }
 

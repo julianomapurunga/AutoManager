@@ -154,7 +154,7 @@ export default function Vehicles() {
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {vehicle.owner.name}
+                    {vehicle.owner?.name || "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     {vehicle.status !== "Vendido" && (

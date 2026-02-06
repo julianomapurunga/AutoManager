@@ -3,10 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePeople } from "@/hooks/use-people";
 import { useMarkAsSold } from "@/hooks/use-vehicles";
+import { CpfPersonLookup } from "./CpfPersonLookup";
 import { DollarSign, Calendar } from "lucide-react";
+import type { Person } from "@shared/schema";
 
 interface SellVehicleDialogProps {
   vehicleId: number;
@@ -22,9 +22,8 @@ function todayStr() {
 
 export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, onOpenChange }: SellVehicleDialogProps) {
   const [salePrice, setSalePrice] = useState(askingPrice > 0 ? (askingPrice / 100).toString() : "");
-  const [buyerId, setBuyerId] = useState<string>("");
+  const [selectedBuyer, setSelectedBuyer] = useState<Person | null>(null);
   const [saleDate, setSaleDate] = useState(todayStr());
-  const { data: clients } = usePeople("Cliente");
   const sellMutation = useMarkAsSold();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -35,13 +34,13 @@ export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, o
     sellMutation.mutate({
       id: vehicleId,
       salePrice: salePriceCents,
-      buyerId: buyerId && buyerId !== "none" ? Number(buyerId) : null,
+      buyerId: selectedBuyer?.id || null,
       saleDate,
     }, {
       onSuccess: () => {
         onOpenChange(false);
         setSalePrice("");
-        setBuyerId("");
+        setSelectedBuyer(null);
         setSaleDate(todayStr());
       }
     });
@@ -87,20 +86,15 @@ export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, o
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Comprador (opcional)</Label>
-            <Select value={buyerId} onValueChange={setBuyerId}>
-              <SelectTrigger data-testid="select-buyer">
-                <SelectValue placeholder="Selecione o comprador" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sem comprador definido</SelectItem>
-                {clients?.map((client) => (
-                  <SelectItem key={client.id} value={String(client.id)}>{client.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
+          <CpfPersonLookup
+            label="Comprador"
+            personType="Cliente"
+            selectedPerson={selectedBuyer}
+            onPersonChange={setSelectedBuyer}
+            optional
+          />
+
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar

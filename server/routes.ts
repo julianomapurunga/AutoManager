@@ -1,9 +1,41 @@
+import express from "express";
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import crypto from "crypto";
+
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const multerStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const name = crypto.randomBytes(16).toString("hex");
+    cb(null, `${name}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage: multerStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = /\.(jpg|jpeg|png|gif|webp)$/i;
+    if (allowed.test(path.extname(file.originalname))) {
+      cb(null, true);
+    } else {
+      cb(new Error("Apenas imagens são permitidas (jpg, png, gif, webp)"));
+    }
+  },
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -18,6 +50,15 @@ export async function registerRoutes(
     const type = req.query.type as string | undefined;
     const people = await storage.getPeople(type);
     res.json(people);
+  });
+
+  app.get("/api/people/search-by-document", isAuthenticated, async (req, res) => {
+    const document = req.query.document as string;
+    if (!document || document.replace(/\D/g, "").length < 3) {
+      return res.json(null);
+    }
+    const person = await storage.getPersonByDocument(document);
+    res.json(person || null);
   });
 
   app.get(api.people.get.path, isAuthenticated, async (req, res) => {
@@ -205,6 +246,67 @@ export async function registerRoutes(
 
   app.delete(api.storeExpenses.delete.path, isAuthenticated, async (req, res) => {
     await storage.deleteStoreExpense(Number(req.params.id));
+    res.status(204).end();
+  });
+
+  // === VEHICLE IMAGES ROUTES ===
+  app.get("/uploads/:filename", isAuthenticated, (req, res) => {
+    const filename = path.basename(String(req.params.filename));
+    const filePath = path.join(uploadsDir, filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ message: "Arquivo não encontrado" });
+    res.sendFile(filePath);
+  });
+
+  app.get("/api/vehicles/:vehicleId/images", isAuthenticated, async (req, res) => {
+    const images = await storage.getVehicleImages(Number(req.params.vehicleId));
+    res.json(images);
+  });
+
+  app.post("/api/vehicles/:vehicleId/images", isAuthenticated, upload.array("images", 20), async (req, res) => {
+    try {
+      const vehicleId = Number(req.params.vehicleId);
+      const vehicle = await storage.getVehicle(vehicleId);
+      if (!vehicle) return res.status(404).json({ message: "Veículo não encontrado" });
+
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ message: "Nenhuma imagem enviada" });
+      }
+
+      const results = [];
+      for (const file of files) {
+        const image = await storage.createVehicleImage(
+          vehicleId,
+          file.originalname,
+          `/uploads/${file.filename}`
+        );
+        results.push(image);
+      }
+      res.status(201).json(results);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message || "Erro ao enviar imagens" });
+    }
+  });
+
+  app.delete("/api/vehicle-images/:id", isAuthenticated, async (req, res) => {
+    const deleted = await storage.deleteVehicleImage(Number(req.params.id));
+    if (deleted?.filePath) {
+      const filename = path.basename(deleted.filePath);
+      const fullPath = path.join(uploadsDir, filename);
+      fs.unlink(fullPath, () => {});
+    }
+    res.status(204).end();
+  });
+
+  app.delete("/api/vehicles/:vehicleId/images", isAuthenticated, async (req, res) => {
+    const deleted = await storage.deleteAllVehicleImages(Number(req.params.vehicleId));
+    for (const img of deleted) {
+      if (img.filePath) {
+        const filename = path.basename(img.filePath);
+        const fullPath = path.join(uploadsDir, filename);
+        fs.unlink(fullPath, () => {});
+      }
+    }
     res.status(204).end();
   });
 

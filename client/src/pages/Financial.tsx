@@ -200,7 +200,7 @@ export default function Financial() {
                     <TableCell className="font-mono font-medium text-emerald-600">
                       {vehicle.salePrice ? formatCurrency(vehicle.salePrice) : '-'}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{vehicle.owner.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{vehicle.owner?.name || "—"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

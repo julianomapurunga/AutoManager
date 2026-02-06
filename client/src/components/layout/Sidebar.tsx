@@ -1,22 +1,24 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt } from "lucide-react";
+import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 
 const items = [
-  { href: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/vehicles", icon: Car, label: "Veículos" },
-  { href: "/people", icon: Users, label: "Pessoas" },
-  { href: "/store-expenses", icon: Receipt, label: "Despesas da Loja" },
-  { href: "/financial", icon: BarChart3, label: "Financeiro" },
+  { href: "/", icon: LayoutDashboard, label: "Dashboard", adminOnly: false },
+  { href: "/vehicles", icon: Car, label: "Veículos", adminOnly: false },
+  { href: "/people", icon: Users, label: "Pessoas", adminOnly: false },
+  { href: "/store-expenses", icon: Receipt, label: "Despesas da Loja", adminOnly: false },
+  { href: "/financial", icon: BarChart3, label: "Financeiro", adminOnly: false },
+  { href: "/settings", icon: Settings, label: "Configurações", adminOnly: true },
 ];
 
 export function Sidebar() {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const getInitials = (first?: string | null, last?: string | null) => {
     const f = first?.charAt(0) || "";
@@ -34,31 +36,32 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
-        {items.map((item) => {
-          const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
-          return (
-            <Link key={item.href} href={item.href}>
-              <div
-                data-testid={`nav-${item.label.toLowerCase()}`}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-md font-medium transition-all duration-200 cursor-pointer",
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover-elevate"
-                )}
-              >
-                <item.icon className={cn("w-5 h-5", isActive ? "text-primary" : "text-muted-foreground")} />
-                {item.label}
-              </div>
-            </Link>
-          );
-        })}
+        {items
+          .filter((item) => !item.adminOnly || user?.role === "Administrador")
+          .map((item) => {
+            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+            return (
+              <Link key={item.href} href={item.href}>
+                <div
+                  data-testid={`nav-${item.label.toLowerCase()}`}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-md font-medium transition-all duration-200 cursor-pointer",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover-elevate"
+                  )}
+                >
+                  <item.icon className={cn("w-5 h-5", isActive ? "text-primary" : "text-muted-foreground")} />
+                  {item.label}
+                </div>
+              </Link>
+            );
+          })}
       </nav>
 
       <div className="p-4 border-t border-border/50">
         <div className="flex items-center gap-3 mb-3 px-2">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
             <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
               {getInitials(user?.firstName, user?.lastName)}
             </AvatarFallback>
@@ -67,17 +70,20 @@ export function Sidebar() {
             <p className="text-sm font-semibold truncate" data-testid="text-username">
               {user?.firstName} {user?.lastName}
             </p>
-            <p className="text-xs text-muted-foreground truncate">
-              {user?.email || "Administrador"}
-            </p>
+            <Badge variant="secondary" className="text-xs" data-testid="text-user-role">
+              {user?.role}
+            </Badge>
           </div>
         </div>
-        <a href="/api/logout">
-          <Button variant="ghost" className="w-full justify-start text-muted-foreground" data-testid="button-logout">
-            <LogOut className="w-4 h-4 mr-2" />
-            Sair
-          </Button>
-        </a>
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-muted-foreground"
+          onClick={() => logout()}
+          data-testid="button-logout"
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sair
+        </Button>
       </div>
     </aside>
   );
@@ -86,11 +92,11 @@ export function Sidebar() {
 export function MobileHeader() {
   const [open, setOpen] = useState(false);
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   return (
     <>
-      <div className="md:hidden h-16 border-b border-border flex items-center justify-between px-4 bg-card sticky top-0 z-50">
+      <div className="md:hidden h-16 border-b border-border flex items-center justify-between gap-4 px-4 bg-card sticky top-0 z-50">
         <h1 className="text-xl font-bold font-display text-primary flex items-center gap-2">
           <Car className="w-6 h-6" />
           AutoManager
@@ -102,31 +108,34 @@ export function MobileHeader() {
 
       {open && (
         <div className="md:hidden bg-card border-b border-border px-4 pb-4 space-y-1 sticky top-16 z-40">
-          {items.map((item) => {
-            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
-            return (
-              <Link key={item.href} href={item.href}>
-                <div
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-md font-medium cursor-pointer",
-                    isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground"
-                  )}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {item.label}
-                </div>
-              </Link>
-            );
-          })}
-          <a href="/api/logout">
-            <div className="flex items-center gap-3 px-4 py-3 text-muted-foreground cursor-pointer">
-              <LogOut className="w-5 h-5" />
-              Sair
-            </div>
-          </a>
+          {items
+            .filter((item) => !item.adminOnly || user?.role === "Administrador")
+            .map((item) => {
+              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+              return (
+                <Link key={item.href} href={item.href}>
+                  <div
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-3 rounded-md font-medium cursor-pointer",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.label}
+                  </div>
+                </Link>
+              );
+            })}
+          <div
+            onClick={() => logout()}
+            className="flex items-center gap-3 px-4 py-3 text-muted-foreground cursor-pointer"
+          >
+            <LogOut className="w-5 h-5" />
+            Sair
+          </div>
         </div>
       )}
     </>

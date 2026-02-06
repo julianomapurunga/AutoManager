@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertVehicleSchema, VEHICLE_STATUS, VEHICLE_BRANDS } from "@shared/schema";
+import type { Person } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -13,28 +15,28 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePeople } from "@/hooks/use-people";
+import { CpfPersonLookup } from "./CpfPersonLookup";
 
-// Frontend needs price in regular currency (float), backend expects cents (int)
 const formSchema = insertVehicleSchema.extend({
-  price: z.coerce.number(), // Input is string/number, coerce it
+  price: z.coerce.number(),
   year: z.coerce.number(),
-  ownerId: z.coerce.number(),
+  ownerId: z.coerce.number().nullable().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 interface VehicleFormProps {
   defaultValues?: Partial<FormData>;
+  defaultOwner?: Person | null;
   onSubmit: (data: any) => void;
   isPending: boolean;
   onCancel: () => void;
   isEdit?: boolean;
 }
 
-export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEdit = false }: VehicleFormProps) {
-  const { data: owners } = usePeople("Proprietário");
-  
+export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, onCancel, isEdit = false }: VehicleFormProps) {
+  const [selectedOwner, setSelectedOwner] = useState<Person | null>(defaultOwner || null);
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -42,15 +44,16 @@ export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEd
       brand: "Toyota",
       notes: "",
       ...defaultValues,
-      price: defaultValues?.price ? defaultValues.price / 100 : undefined, // Convert cents to currency for display
+      price: defaultValues?.price ? defaultValues.price / 100 : undefined,
+      ownerId: defaultValues?.ownerId || null,
     },
   });
 
   const handleSubmit = (data: FormData) => {
-    // Convert currency back to cents for backend
     onSubmit({
       ...data,
       price: Math.round(data.price * 100),
+      ownerId: selectedOwner?.id || null,
     });
   };
 
@@ -65,7 +68,7 @@ export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEd
               <FormItem>
                 <FormLabel>Placa</FormLabel>
                 <FormControl>
-                  <Input placeholder="ABC-1234" {...field} className="uppercase" maxLength={8} />
+                  <Input placeholder="ABC-1234" {...field} className="uppercase" maxLength={8} data-testid="input-plate" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -80,7 +83,7 @@ export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEd
                 <FormLabel>Marca</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger data-testid="select-brand">
                       <SelectValue placeholder="Selecione a marca" />
                     </SelectTrigger>
                   </FormControl>
@@ -102,7 +105,7 @@ export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEd
               <FormItem>
                 <FormLabel>Modelo</FormLabel>
                 <FormControl>
-                  <Input placeholder="Ex: Corolla XEi" {...field} />
+                  <Input placeholder="Ex: Corolla XEi" {...field} data-testid="input-model" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -116,7 +119,7 @@ export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEd
               <FormItem>
                 <FormLabel>Cor</FormLabel>
                 <FormControl>
-                  <Input placeholder="Ex: Prata" {...field} />
+                  <Input placeholder="Ex: Prata" {...field} data-testid="input-color" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -130,7 +133,7 @@ export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEd
               <FormItem>
                 <FormLabel>Ano</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder="2024" {...field} />
+                  <Input type="number" placeholder="2024" {...field} data-testid="input-year" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -144,31 +147,38 @@ export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEd
               <FormItem>
                 <FormLabel>Preço (R$)</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                  <Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-price" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+        </div>
 
+        <CpfPersonLookup
+          label="Proprietário"
+          personType="Proprietário"
+          selectedPerson={selectedOwner}
+          onPersonChange={setSelectedOwner}
+          optional
+        />
+
+        {isEdit && (
           <FormField
             control={form.control}
-            name="ownerId"
+            name="status"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Proprietário</FormLabel>
-                <Select 
-                  onValueChange={(val) => field.onChange(Number(val))} 
-                  defaultValue={field.value ? String(field.value) : undefined}
-                >
+                <FormLabel>Status</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o proprietário" />
+                    <SelectTrigger data-testid="select-status">
+                      <SelectValue placeholder="Selecione o status" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {owners?.map((owner) => (
-                      <SelectItem key={owner.id} value={String(owner.id)}>{owner.name}</SelectItem>
+                    {VEHICLE_STATUS.filter(s => s !== "Vendido").map((status) => (
+                      <SelectItem key={status} value={status}>{status}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -176,32 +186,7 @@ export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEd
               </FormItem>
             )}
           />
-
-          {isEdit && (
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-status">
-                        <SelectValue placeholder="Selecione o status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {VEHICLE_STATUS.filter(s => s !== "Vendido").map((status) => (
-                        <SelectItem key={status} value={status}>{status}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
-        </div>
+        )}
 
         <FormField
           control={form.control}
@@ -210,7 +195,7 @@ export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEd
             <FormItem>
               <FormLabel>Observações</FormLabel>
               <FormControl>
-                <Input placeholder="Detalhes adicionais..." {...field} value={field.value || ""} />
+                <Input placeholder="Detalhes adicionais..." {...field} value={field.value || ""} data-testid="input-notes" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -219,7 +204,7 @@ export function VehicleForm({ defaultValues, onSubmit, isPending, onCancel, isEd
 
         <div className="flex justify-end gap-3 pt-4">
           <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button type="submit" disabled={isPending}>
+          <Button type="submit" disabled={isPending} data-testid="button-save-vehicle">
             {isPending ? "Salvando..." : "Salvar Veículo"}
           </Button>
         </div>
