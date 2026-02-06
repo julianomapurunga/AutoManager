@@ -1,0 +1,32 @@
+
+PRD - Sistema de Controle de Pátio de Loja de Veículos
+
+Visão Geral
+Sistema para controle completo de veículos em pátio, incluindo cadastro de veículos, proprietários, clientes e controle financeiro de despesas.
+
+Funcionalidades
+- Cadastro de veículos
+- Cadastro de clientes
+- Cadastro de proprietários
+- Controle de despesas por veículo
+- Situação do veículo
+- Relatórios básicos
+
+Entidades Principais
+Pessoa (classe base)
+Cliente (estende Pessoa)
+Proprietário (estende Pessoa)
+Veículo
+DespesaVeiculo
+
+Enums
+MarcaVeiculo
+SituacaoVeiculo
+
+Regras de Negócio
+- Veículo sempre possui proprietário
+- Placa única
+- Despesas vinculadas ao veículo
+- Cálculo automático de custos
+
+Baseado em planilha física de controle de carros.
