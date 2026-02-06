@@ -38,6 +38,13 @@ Sistema para controle completo de veículos em pátio de loja, incluindo cadastr
 - 2026-02-06: Split vehicle year into yearFab (fabricação) and yearModel (modelo) fields
 - 2026-02-06: Added R$ currency mask with proper decimal formatting on vehicle price input
 - 2026-02-06: Display format: yearFab/yearModel (e.g. 2024/2025) across all pages
+- 2026-02-06: FIPE consultation page (/fipe) with cascading selects (type, brand, model, year)
+- 2026-02-06: Backend proxy for FIPE API (fipe.parallelum.com.br/api/v2) with vehicleType validation
+- 2026-02-06: Added "FIPE" navigation item to sidebar
+- 2026-02-06: Added fipeCode and fipePrice fields to vehicles table for FIPE data storage
+- 2026-02-06: VehicleForm has collapsible FIPE lookup section with cascading selects that auto-fill brand, model, yearModel, fipeCode, fipePrice
+- 2026-02-06: Dashboard vehicle cards show FIPE price discretely when available
+- 2026-02-06: VehicleDetails page shows FIPE price and code below asking price
 
 ## Project Architecture
 
@@ -87,7 +94,7 @@ client/src/
 
 ### Database Tables
 - **people:** Owners and clients (name, phone, email, document, type)
-- **vehicles:** Vehicle records (plate, brand, model, color, yearFab, yearModel, price, salePrice, saleDate, buyerId, status, ownerId, entryDate)
+- **vehicles:** Vehicle records (plate, brand, model, color, yearFab, yearModel, price, salePrice, saleDate, buyerId, status, ownerId, entryDate, fipeCode, fipePrice)
 - **expenses:** Expenses per vehicle (description, amount, vehicleId)
 - **storeExpenses:** Store operational expenses (description, category, amount, date)
 - **users:** System users (id serial, username, password hash, firstName, lastName, phone, cpf, gender, role)

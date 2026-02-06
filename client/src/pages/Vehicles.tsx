@@ -11,7 +11,7 @@ import { VehicleForm } from "@/components/forms/VehicleForm";
 import { SellVehicleDialog } from "@/components/forms/SellVehicleDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VEHICLE_STATUS } from "@shared/schema";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export default function Vehicles() {
   const [search, setSearch] = useState("");
@@ -97,7 +97,7 @@ export default function Vehicles() {
               <TableHead>Ano</TableHead>
 
               <TableHead>Preço</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="text-center">Status</TableHead>
               <TableHead>Proprietário</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -131,11 +131,9 @@ export default function Vehicles() {
                   <TableCell className="font-medium text-emerald-600 font-mono">
                     {formatCurrency(vehicle.price || 0)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     {vehicle.status === "Vendido" ? (
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-status-${vehicle.id}`}>
-                        Vendido
-                      </Badge>
+                      <StatusBadge status="Vendido" data-testid={`badge-status-${vehicle.id}`} />
                     ) : (
                       <Select
                         value={vehicle.status}
@@ -143,8 +141,8 @@ export default function Vehicles() {
                           updateMutation.mutate({ id: vehicle.id, status: newStatus as typeof VEHICLE_STATUS[number] });
                         }}
                       >
-                        <SelectTrigger className="w-[180px]" data-testid={`select-change-status-${vehicle.id}`}>
-                          <SelectValue />
+                        <SelectTrigger className="w-auto border-0 bg-transparent shadow-none p-0 h-auto justify-center gap-1" data-testid={`select-change-status-${vehicle.id}`}>
+                          <StatusBadge status={vehicle.status} />
                         </SelectTrigger>
                         <SelectContent>
                           {VEHICLE_STATUS.filter(s => s !== "Vendido").map((s) => (

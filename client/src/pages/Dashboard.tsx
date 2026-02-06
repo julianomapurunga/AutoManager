@@ -141,9 +141,16 @@ export default function Dashboard() {
                         {formatCurrency(vehicle.price || 0)}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {vehicle.owner ? `Proprietário: ${vehicle.owner.name}` : "Sem proprietário"}
-                    </p>
+                    <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
+                      <p className="text-xs text-muted-foreground">
+                        {vehicle.owner ? `Proprietário: ${vehicle.owner.name}` : "Sem proprietário"}
+                      </p>
+                      {vehicle.fipePrice && (
+                        <span className="text-[10px] text-muted-foreground font-mono" data-testid={`text-fipe-price-${vehicle.id}`}>
+                          FIPE: {vehicle.fipePrice}
+                        </span>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </Link>

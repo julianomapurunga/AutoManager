@@ -12,6 +12,7 @@ import VehicleDetails from "@/pages/VehicleDetails";
 import People from "@/pages/People";
 import StoreExpenses from "@/pages/StoreExpenses";
 import Financial from "@/pages/Financial";
+import Fipe from "@/pages/Fipe";
 import Settings from "@/pages/Settings";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
@@ -41,6 +42,7 @@ function AuthenticatedRouter() {
               <Route path="/people" component={People} />
               <Route path="/store-expenses" component={StoreExpenses} />
               <Route path="/financial" component={Financial} />
+              <Route path="/fipe" component={Fipe} />
               <Route path="/settings">{() => <AdminRoute component={Settings} />}</Route>
               <Route component={NotFound} />
             </Switch>

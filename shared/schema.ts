@@ -47,6 +47,8 @@ export const vehicles = pgTable("vehicles", {
   ownerId: integer("owner_id").references(() => people.id),
   entryDate: timestamp("entry_date").defaultNow(),
   notes: text("notes"),
+  fipeCode: text("fipe_code"),
+  fipePrice: text("fipe_price"),
 });
 
 export const expenses = pgTable("expenses", {

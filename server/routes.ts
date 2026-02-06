@@ -317,18 +317,77 @@ export async function registerRoutes(
   });
 
   // === SEED DATA ===
+  // === FIPE API PROXY ===
+  const FIPE_BASE = "https://fipe.parallelum.com.br/api/v2";
+  const VALID_VEHICLE_TYPES = ["cars", "motorcycles", "trucks"];
+
+  function validateVehicleType(type: string | string[], res: express.Response): type is string {
+    if (typeof type !== "string" || !VALID_VEHICLE_TYPES.includes(type)) {
+      res.status(400).json({ message: "Tipo de veículo inválido" });
+      return false;
+    }
+    return true;
+  }
+
+  app.get("/api/fipe/:vehicleType/brands", isAuthenticated, async (req, res) => {
+    try {
+      if (!validateVehicleType(req.params.vehicleType, res)) return;
+      const response = await fetch(`${FIPE_BASE}/${req.params.vehicleType}/brands`);
+      const data = await response.json();
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ message: "Erro ao consultar FIPE" });
+    }
+  });
+
+  app.get("/api/fipe/:vehicleType/brands/:brandId/models", isAuthenticated, async (req, res) => {
+    try {
+      if (!validateVehicleType(req.params.vehicleType, res)) return;
+      const { vehicleType, brandId } = req.params;
+      const response = await fetch(`${FIPE_BASE}/${vehicleType}/brands/${brandId}/models`);
+      const data = await response.json();
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ message: "Erro ao consultar FIPE" });
+    }
+  });
+
+  app.get("/api/fipe/:vehicleType/brands/:brandId/models/:modelId/years", isAuthenticated, async (req, res) => {
+    try {
+      if (!validateVehicleType(req.params.vehicleType, res)) return;
+      const { vehicleType, brandId, modelId } = req.params;
+      const response = await fetch(`${FIPE_BASE}/${vehicleType}/brands/${brandId}/models/${modelId}/years`);
+      const data = await response.json();
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ message: "Erro ao consultar FIPE" });
+    }
+  });
+
+  app.get("/api/fipe/:vehicleType/brands/:brandId/models/:modelId/years/:yearId", isAuthenticated, async (req, res) => {
+    try {
+      if (!validateVehicleType(req.params.vehicleType, res)) return;
+      const { vehicleType, brandId, modelId, yearId } = req.params;
+      const response = await fetch(`${FIPE_BASE}/${vehicleType}/brands/${brandId}/models/${modelId}/years/${yearId}`);
+      const data = await response.json();
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ message: "Erro ao consultar FIPE" });
+    }
+  });
+
   await seedDatabase();
 
   return httpServer;
 }
 
 async function seedDatabase() {
-  const existingPeople = await storage.getPeople();
-  if (existingPeople.length === 0) {
+  const existingVehicles = await storage.getVehicles();
+  if (existingVehicles.length === 0) {
     const owner1 = await storage.createPerson({
       name: "João Silva",
       email: "joao@email.com",
-      phone: "11999998888",
+      phone: "(11) 99999-8888",
       type: "Proprietário",
       document: "123.456.789-00"
     });
@@ -336,55 +395,94 @@ async function seedDatabase() {
     const owner2 = await storage.createPerson({
       name: "Maria Oliveira",
       email: "maria@email.com",
-      phone: "11988887777",
+      phone: "(11) 98888-7777",
       type: "Proprietário",
       document: "987.654.321-99"
+    });
+
+    const owner3 = await storage.createPerson({
+      name: "Pedro Costa",
+      email: "pedro@email.com",
+      phone: "(21) 97777-6666",
+      type: "Proprietário",
+      document: "111.222.333-44"
     });
 
     await storage.createPerson({
       name: "Carlos Santos",
       email: "carlos@email.com",
-      phone: "11977776666",
+      phone: "(11) 96666-5555",
       type: "Cliente",
-      document: "111.222.333-44"
+      document: "555.666.777-88"
     });
 
-    const vehicle1 = await storage.createVehicle({
-      plate: "ABC-1234",
-      brand: "Honda",
-      model: "Civic EX",
-      color: "Prata",
-      yearFab: 2020,
-      yearModel: 2020,
-      price: 8500000,
-      status: "Disponível",
-      ownerId: owner1.id,
-      notes: "Carro em ótimo estado, único dono."
-    });
+    const parseFipePrice = (fipePrice: string): number => {
+      const digits = fipePrice.replace(/[^\d]/g, "");
+      return parseInt(digits, 10) || 0;
+    };
 
-    await storage.createVehicle({
-      plate: "XYZ-9876",
-      brand: "Toyota",
-      model: "Corolla XEi",
-      color: "Preto",
-      yearFab: 2021,
-      yearModel: 2021,
-      price: 11000000,
-      status: "Aguardando Preparação",
-      ownerId: owner2.id,
-      notes: "Precisa de polimento."
-    });
+    const colors = ["Branco", "Prata", "Preto", "Cinza", "Vermelho", "Azul", "Branco Pérola", "Grafite"];
+    const statuses: Array<"Disponível" | "Aguardando Preparação" | "Em Manutenção" | "Reservado"> = ["Disponível", "Disponível", "Disponível", "Aguardando Preparação", "Em Manutenção", "Reservado"];
+    const owners = [owner1, owner2, owner3, null];
 
-    await storage.createExpense({
-      vehicleId: vehicle1.id,
-      description: "Lavagem completa",
-      amount: 15000
-    });
+    const fipeVehicles = [
+      { plate: "BRA2E19", brand: "Fiat" as const, model: "ARGO 1.0 6V Flex", yearFab: 2025, yearModel: 2026, fipeCode: "001509-1", fipePrice: "R$ 76.785,00", color: "Branco", notes: "Carro seminovo, revisões em dia" },
+      { plate: "MER4K56", brand: "Fiat" as const, model: "MOBI DRIVE 1.0 Flex 6V 5p", yearFab: 2019, yearModel: 2020, fipeCode: "001480-0", fipePrice: "R$ 43.197,00", color: "Prata", notes: "Econômico, ideal para cidade" },
+      { plate: "RIO7H89", brand: "Fiat" as const, model: "PULSE 1.0 Turbo 200 Flex Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "001592-0", fipePrice: "R$ 110.912,00", color: "Vermelho", notes: "SUV compacto turbo, completo" },
+      { plate: "SAO1A23", brand: "Fiat" as const, model: "Strada 1.3 mpi Fire 8V 67cv CE", yearFab: 2004, yearModel: 2005, fipeCode: "001184-3", fipePrice: "R$ 28.297,00", color: "Branco", notes: "Pick-up cabine estendida" },
+      { plate: "CWB5D67", brand: "Fiat" as const, model: "Toro Blackjack 2.4 16V Flex Aut", yearFab: 2018, yearModel: 2019, fipeCode: "001495-8", fipePrice: "R$ 99.739,00", color: "Preto", notes: "Pick-up média, tração 4x2" },
+      { plate: "BHZ3F45", brand: "Fiat" as const, model: "CRONOS 1.0 6V Flex", yearFab: 2022, yearModel: 2023, fipeCode: "001552-0", fipePrice: "R$ 64.039,00", color: "Cinza", notes: "Sedan compacto, bom estado" },
+      { plate: "POA8G12", brand: "Chevrolet" as const, model: "ONIX Lollapalooza 1.0 F.Power 5p Mec.", yearFab: 2013, yearModel: 2014, fipeCode: "004451-2", fipePrice: "R$ 43.498,00", color: "Azul", notes: "Edição especial Lollapalooza" },
+      { plate: "REC2J34", brand: "Chevrolet" as const, model: "TRACKER 1.0 Turbo 12V Flex Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "004526-8", fipePrice: "R$ 114.659,00", color: "Branco Pérola", notes: "SUV turbo automático, zero bala" },
+      { plate: "FOR6L78", brand: "Chevrolet" as const, model: "S10 Blazer DTi 2.8 4x2 Turbo Diesel", yearFab: 2001, yearModel: 2002, fipeCode: "004226-9", fipePrice: "R$ 49.400,00", color: "Prata", notes: "SUV diesel, bom para estrada" },
+      { plate: "MAN9N01", brand: "Chevrolet" as const, model: "SPIN 1.8 8V Econo.Flex 5p Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "004564-0", fipePrice: "R$ 105.285,00", color: "Cinza", notes: "Minivan 7 lugares, automático" },
+      { plate: "VIT4P23", brand: "Volkswagen" as const, model: "T-Cross 1.0 TSI Flex 12V 5p Mec.", yearFab: 2020, yearModel: 2021, fipeCode: "005511-5", fipePrice: "R$ 91.804,00", color: "Branco", notes: "SUV compacto, câmbio manual" },
+      { plate: "NAT7R45", brand: "Volkswagen" as const, model: "VIRTUS 1.6 MSI Flex 16V 4p Aut.", yearFab: 2021, yearModel: 2022, fipeCode: "005500-0", fipePrice: "R$ 84.563,00", color: "Prata", notes: "Sedan automático, completo" },
+      { plate: "GOI1T67", brand: "Volkswagen" as const, model: "Saveiro Xtreme 1.6", yearFab: 2002, yearModel: 2003, fipeCode: "005168-3", fipePrice: "R$ 24.700,00", color: "Vermelho", notes: "Pick-up compacta, bom estado" },
+      { plate: "FLN3V89", brand: "Toyota" as const, model: "Corolla Altis 1.8 16V Aut. (Híbrido)", yearFab: 2024, yearModel: 2025, fipeCode: "002182-2", fipePrice: "R$ 180.321,00", color: "Grafite", notes: "Sedan híbrido, econômico" },
+      { plate: "CPS5X01", brand: "Toyota" as const, model: "YARIS Cross XRE 1.5 16V 5p Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "002223-3", fipePrice: "R$ 154.175,00", color: "Branco Pérola", notes: "SUV compacto, novo modelo" },
+      { plate: "JPA8Z23", brand: "Honda" as const, model: "HR-V Advance 1.5 Flex TB 16V 5p Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "014111-9", fipePrice: "R$ 185.886,00", color: "Preto", notes: "SUV turbo, top de linha" },
+      { plate: "SLV2B45", brand: "Honda" as const, model: "CITY Hatchback EX 1.5 Flex 16V Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "014115-1", fipePrice: "R$ 129.728,00", color: "Azul", notes: "Hatch automático, completo" },
+      { plate: "MAC6D67", brand: "Hyundai" as const, model: "HB20 1.0 Comfort Plus", yearFab: 2023, yearModel: 2024, fipeCode: "015142-4", fipePrice: "R$ 72.500,00", color: "Branco", notes: "Hatch popular, econômico" },
+      { plate: "AJU9F89", brand: "Jeep" as const, model: "Renegade 1.8 Flex Aut.", yearFab: 2022, yearModel: 2023, fipeCode: "037006-0", fipePrice: "R$ 98.500,00", color: "Preto", notes: "SUV 4x2, automático" },
+      { plate: "TER3H01", brand: "Jeep" as const, model: "Compass 2.0 16V Flex Aut.", yearFab: 2023, yearModel: 2024, fipeCode: "037013-2", fipePrice: "R$ 155.000,00", color: "Grafite", notes: "SUV médio, top da categoria" },
+    ];
 
-    await storage.createExpense({
-      vehicleId: vehicle1.id,
-      description: "Troca de óleo",
-      amount: 35000
-    });
+    for (let i = 0; i < fipeVehicles.length; i++) {
+      const v = fipeVehicles[i];
+      const fipeCents = parseFipePrice(v.fipePrice);
+      const priceVariation = 0.9 + Math.random() * 0.2;
+      const askingPrice = Math.round(fipeCents * priceVariation);
+      const owner = owners[i % owners.length];
+      const status = statuses[i % statuses.length];
+
+      const vehicle = await storage.createVehicle({
+        plate: v.plate,
+        brand: v.brand,
+        model: v.model,
+        color: v.color,
+        yearFab: v.yearFab,
+        yearModel: v.yearModel,
+        price: askingPrice,
+        status: status,
+        ownerId: owner?.id || null,
+        notes: v.notes,
+        fipeCode: v.fipeCode,
+        fipePrice: v.fipePrice,
+      });
+
+      if (i < 5) {
+        await storage.createExpense({
+          vehicleId: vehicle.id,
+          description: "Lavagem completa",
+          amount: 15000
+        });
+        await storage.createExpense({
+          vehicleId: vehicle.id,
+          description: "Polimento e espelhamento",
+          amount: 45000
+        });
+      }
+    }
   }
 }

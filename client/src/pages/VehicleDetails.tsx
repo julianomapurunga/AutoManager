@@ -10,9 +10,9 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Trash2, Edit2, Plus, Calendar, ShoppingCart, ImagePlus, X, Trash, Loader2 } from "lucide-react";
 import { VEHICLE_STATUS } from "@shared/schema";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { VehicleForm } from "@/components/forms/VehicleForm";
 import { SellVehicleDialog } from "@/components/forms/SellVehicleDialog";
 import { useState, useRef } from "react";
@@ -123,9 +123,7 @@ export default function VehicleDetails() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-4xl font-bold font-display" data-testid="text-vehicle-name">{vehicle.brand} {vehicle.model}</h1>
             {isSold ? (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200 text-sm px-3 py-1 no-default-hover-elevate no-default-active-elevate" data-testid="badge-vehicle-status">
-                Vendido
-              </Badge>
+              <StatusBadge status="Vendido" className="text-sm px-3 py-1" data-testid="badge-vehicle-status" />
             ) : (
               <Select
                 value={vehicle.status}
@@ -133,8 +131,8 @@ export default function VehicleDetails() {
                   updateMutation.mutate({ id, status: newStatus as typeof VEHICLE_STATUS[number] });
                 }}
               >
-                <SelectTrigger className="w-[200px]" data-testid="select-vehicle-status">
-                  <SelectValue />
+                <SelectTrigger className="w-auto border-0 bg-transparent shadow-none p-0 h-auto gap-1" data-testid="select-vehicle-status">
+                  <StatusBadge status={vehicle.status} className="text-sm px-3 py-1" />
                 </SelectTrigger>
                 <SelectContent>
                   {VEHICLE_STATUS.filter(s => s !== "Vendido").map((s) => (
@@ -177,6 +175,8 @@ export default function VehicleDetails() {
                   status: vehicle.status,
                   ownerId: vehicle.ownerId,
                   notes: vehicle.notes ?? undefined,
+                  fipeCode: vehicle.fipeCode ?? undefined,
+                  fipePrice: vehicle.fipePrice ?? undefined,
                 }}
                 defaultOwner={vehicle.owner}
                 onSubmit={handleUpdate}
@@ -210,6 +210,12 @@ export default function VehicleDetails() {
                 <div className="font-medium text-lg text-emerald-600 font-mono" data-testid="text-asking-price">
                   {formatCurrency(vehicle.price || 0)}
                 </div>
+                {vehicle.fipePrice && (
+                  <div className="text-xs text-muted-foreground font-mono mt-0.5" data-testid="text-vehicle-fipe-price">
+                    FIPE: {vehicle.fipePrice}
+                    {vehicle.fipeCode && <span className="ml-1">({vehicle.fipeCode})</span>}
+                  </div>
+                )}
               </div>
               <div>
                 <Label className="text-muted-foreground">Proprietário</Label>

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt, Settings } from "lucide-react";
+import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt, Settings, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -13,6 +13,7 @@ const items = [
   { href: "/people", icon: Users, label: "Pessoas", adminOnly: false },
   { href: "/store-expenses", icon: Receipt, label: "Despesas da Loja", adminOnly: false },
   { href: "/financial", icon: BarChart3, label: "Financeiro", adminOnly: false },
+  { href: "/fipe", icon: Search, label: "FIPE", adminOnly: false },
   { href: "/settings", icon: Settings, label: "Configurações", adminOnly: true },
 ];
 
