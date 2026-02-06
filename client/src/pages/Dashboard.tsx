@@ -135,7 +135,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-3 text-sm text-muted-foreground">
                         <span>{vehicle.color}</span>
-                        <span>{vehicle.year}</span>
+                        <span>{vehicle.yearFab && vehicle.yearModel ? `${vehicle.yearFab}/${vehicle.yearModel}` : vehicle.yearFab || vehicle.yearModel || ""}</span>
                       </div>
                       <span className="font-bold text-emerald-600 font-mono" data-testid={`text-price-${vehicle.id}`}>
                         {formatCurrency(vehicle.price || 0)}

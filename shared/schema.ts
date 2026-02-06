@@ -37,7 +37,8 @@ export const vehicles = pgTable("vehicles", {
   brand: text("brand", { enum: VEHICLE_BRANDS }).notNull(),
   model: text("model").notNull(),
   color: text("color").notNull(),
-  year: integer("year"),
+  yearFab: integer("year_fab"),
+  yearModel: integer("year_model"),
   price: integer("price"), // Asking price stored in cents
   salePrice: integer("sale_price"), // Actual sale price in cents (set when sold)
   saleDate: timestamp("sale_date"), // Date when vehicle was sold

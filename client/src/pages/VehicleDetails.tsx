@@ -144,7 +144,7 @@ export default function VehicleDetails() {
               </Select>
             )}
           </div>
-          <p className="text-xl text-muted-foreground mt-1 uppercase tracking-wider">{vehicle.plate} - {vehicle.year}</p>
+          <p className="text-xl text-muted-foreground mt-1 uppercase tracking-wider">{vehicle.plate} - {vehicle.yearFab && vehicle.yearModel ? `${vehicle.yearFab}/${vehicle.yearModel}` : vehicle.yearFab || vehicle.yearModel || ""}</p>
         </div>
 
         <div className="flex gap-2 flex-wrap">
@@ -171,7 +171,8 @@ export default function VehicleDetails() {
                   brand: vehicle.brand,
                   model: vehicle.model,
                   color: vehicle.color,
-                  year: vehicle.year ?? undefined,
+                  yearFab: vehicle.yearFab ?? undefined,
+                  yearModel: vehicle.yearModel ?? undefined,
                   price: vehicle.price ?? undefined,
                   status: vehicle.status,
                   ownerId: vehicle.ownerId,

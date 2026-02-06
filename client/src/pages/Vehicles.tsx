@@ -95,6 +95,7 @@ export default function Vehicles() {
               <TableHead>Veículo</TableHead>
               <TableHead>Placa</TableHead>
               <TableHead>Ano</TableHead>
+
               <TableHead>Preço</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Proprietário</TableHead>
@@ -126,7 +127,7 @@ export default function Vehicles() {
                     <div className="text-xs text-muted-foreground">{vehicle.color}</div>
                   </TableCell>
                   <TableCell className="font-mono uppercase">{vehicle.plate}</TableCell>
-                  <TableCell>{vehicle.year}</TableCell>
+                  <TableCell>{vehicle.yearFab && vehicle.yearModel ? `${vehicle.yearFab}/${vehicle.yearModel}` : vehicle.yearFab || vehicle.yearModel || "-"}</TableCell>
                   <TableCell className="font-medium text-emerald-600 font-mono">
                     {formatCurrency(vehicle.price || 0)}
                   </TableCell>

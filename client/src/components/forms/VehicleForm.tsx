@@ -18,15 +18,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CpfPersonLookup } from "./CpfPersonLookup";
 
 const formSchema = insertVehicleSchema.extend({
-  price: z.coerce.number(),
-  year: z.coerce.number(),
+  price: z.string().optional(),
+  yearFab: z.coerce.number().min(1900).max(2100).optional().nullable(),
+  yearModel: z.coerce.number().min(1900).max(2100).optional().nullable(),
   ownerId: z.coerce.number().nullable().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
+function formatCurrencyInput(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  const cents = parseInt(digits, 10);
+  const reais = (cents / 100).toFixed(2);
+  const [intPart, decPart] = reais.split(".");
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `R$ ${formatted},${decPart}`;
+}
+
+function parseCurrencyToNumber(value: string): number {
+  const digits = value.replace(/\D/g, "");
+  return parseInt(digits, 10) || 0;
+}
+
+function centsToFormattedCurrency(cents: number): string {
+  if (!cents) return "";
+  const reais = (cents / 100).toFixed(2);
+  const [intPart, decPart] = reais.split(".");
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `R$ ${formatted},${decPart}`;
+}
+
 interface VehicleFormProps {
-  defaultValues?: Partial<FormData>;
+  defaultValues?: Partial<FormData & { price: any }>;
   defaultOwner?: Person | null;
   onSubmit: (data: any) => void;
   isPending: boolean;
@@ -36,6 +60,11 @@ interface VehicleFormProps {
 
 export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, onCancel, isEdit = false }: VehicleFormProps) {
   const [selectedOwner, setSelectedOwner] = useState<Person | null>(defaultOwner || null);
+  const [priceDisplay, setPriceDisplay] = useState(() => {
+    const p = defaultValues?.price;
+    if (typeof p === "number" && p > 0) return centsToFormattedCurrency(p);
+    return "";
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -44,15 +73,23 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
       brand: "Toyota",
       notes: "",
       ...defaultValues,
-      price: defaultValues?.price ? defaultValues.price / 100 : undefined,
+      price: defaultValues?.price ? String(defaultValues.price) : "",
       ownerId: defaultValues?.ownerId || null,
     },
   });
 
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const formatted = formatCurrencyInput(raw);
+    setPriceDisplay(formatted);
+    form.setValue("price", String(parseCurrencyToNumber(raw)));
+  };
+
   const handleSubmit = (data: FormData) => {
+    const priceInCents = parseCurrencyToNumber(priceDisplay);
     onSubmit({
       ...data,
-      price: Math.round(data.price * 100),
+      price: priceInCents,
       ownerId: selectedOwner?.id || null,
     });
   };
@@ -128,12 +165,26 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
 
           <FormField
             control={form.control}
-            name="year"
+            name="yearFab"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Ano</FormLabel>
+                <FormLabel>Ano Fabricação</FormLabel>
                 <FormControl>
-                  <Input type="number" placeholder="2024" {...field} data-testid="input-year" />
+                  <Input type="number" placeholder="2024" {...field} value={field.value ?? ""} data-testid="input-year-fab" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="yearModel"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Ano Modelo</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="2025" {...field} value={field.value ?? ""} data-testid="input-year-model" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -143,11 +194,16 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
           <FormField
             control={form.control}
             name="price"
-            render={({ field }) => (
+            render={() => (
               <FormItem>
                 <FormLabel>Preço (R$)</FormLabel>
                 <FormControl>
-                  <Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-price" />
+                  <Input
+                    placeholder="R$ 0,00"
+                    value={priceDisplay}
+                    onChange={handlePriceChange}
+                    data-testid="input-price"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

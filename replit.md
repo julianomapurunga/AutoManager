@@ -35,6 +35,9 @@ Sistema para controle completo de veículos em pátio de loja, incluindo cadastr
 - 2026-02-06: CPF-based person lookup: type CPF to auto-search, register new person via dialog
 - 2026-02-06: VehicleForm and SellVehicleDialog use CPF lookup instead of select dropdowns
 - 2026-02-06: Added /api/people/search-by-document endpoint for CPF-based search
+- 2026-02-06: Split vehicle year into yearFab (fabricação) and yearModel (modelo) fields
+- 2026-02-06: Added R$ currency mask with proper decimal formatting on vehicle price input
+- 2026-02-06: Display format: yearFab/yearModel (e.g. 2024/2025) across all pages
 
 ## Project Architecture
 
@@ -84,7 +87,7 @@ client/src/
 
 ### Database Tables
 - **people:** Owners and clients (name, phone, email, document, type)
-- **vehicles:** Vehicle records (plate, brand, model, color, year, price, salePrice, saleDate, buyerId, status, ownerId, entryDate)
+- **vehicles:** Vehicle records (plate, brand, model, color, yearFab, yearModel, price, salePrice, saleDate, buyerId, status, ownerId, entryDate)
 - **expenses:** Expenses per vehicle (description, amount, vehicleId)
 - **storeExpenses:** Store operational expenses (description, category, amount, date)
 - **users:** System users (id serial, username, password hash, firstName, lastName, phone, cpf, gender, role)
