@@ -154,6 +154,8 @@ export const api = {
           totalAvailable: z.number(),
           totalSold: z.number(),
           totalExpenses: z.number(),
+          totalVehicleExpenses: z.number(),
+          totalStoreExpenses: z.number(),
           currentMonthSales: z.number(),
           currentMonthRevenue: z.number(),
           previousMonthSales: z.number(),

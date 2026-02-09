@@ -1,9 +1,36 @@
 import type { Express } from "express";
 import bcrypt from "bcryptjs";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { authStorage } from "./storage";
 import { isAuthenticated, isAdmin } from "./replitAuth";
 import { updateUserSchema, registerSchema } from "@shared/models/auth";
 import { z } from "zod";
+
+const profileUploadsDir = path.join(process.cwd(), "uploads", "profiles");
+if (!fs.existsSync(profileUploadsDir)) {
+  fs.mkdirSync(profileUploadsDir, { recursive: true });
+}
+
+const profileUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, profileUploadsDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `profile-${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = /\.(jpg|jpeg|png|gif|webp)$/i;
+    if (allowed.test(path.extname(file.originalname))) {
+      cb(null, true);
+    } else {
+      cb(new Error("Tipo de arquivo não suportado"));
+    }
+  },
+});
 
 export function registerAuthRoutes(app: Express): void {
   app.get("/api/auth/user", isAuthenticated, async (req, res) => {
@@ -18,6 +45,77 @@ export function registerAuthRoutes(app: Express): void {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  app.put("/api/auth/profile", isAuthenticated, profileUpload.single("profileImage"), async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const user = await authStorage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      const updateData: Record<string, unknown> = {};
+
+      if (req.body.firstName) {
+        updateData.firstName = req.body.firstName;
+      }
+      if (req.body.lastName !== undefined) {
+        updateData.lastName = req.body.lastName || null;
+      }
+
+      const oldImageUrl = user.profileImageUrl;
+
+      if (req.file) {
+        updateData.profileImageUrl = `/uploads/profiles/${req.file.filename}`;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        const { password: _, ...userWithoutPassword } = user;
+        return res.json(userWithoutPassword);
+      }
+
+      const updated = await authStorage.updateUser(userId, updateData as any);
+
+      if (req.file && oldImageUrl) {
+        const oldFilename = oldImageUrl.replace("/uploads/profiles/", "");
+        const oldPath = path.join(profileUploadsDir, oldFilename);
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+
+      const { password: _, ...userWithoutPassword } = updated;
+      res.json(userWithoutPassword);
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      res.status(500).json({ message: "Erro ao atualizar perfil" });
+    }
+  });
+
+  app.delete("/api/auth/profile-image", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const user = await authStorage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      if (user.profileImageUrl) {
+        const filename = user.profileImageUrl.replace("/uploads/profiles/", "");
+        const filePath = path.join(profileUploadsDir, filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+
+      const updated = await authStorage.updateUser(userId, { profileImageUrl: null } as any);
+      const { password: _, ...userWithoutPassword } = updated;
+      res.json(userWithoutPassword);
+    } catch (err) {
+      console.error("Error removing profile image:", err);
+      res.status(500).json({ message: "Erro ao remover foto de perfil" });
     }
   });
 

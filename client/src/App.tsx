@@ -14,6 +14,7 @@ import StoreExpenses from "@/pages/StoreExpenses";
 import Financial from "@/pages/Financial";
 import Fipe from "@/pages/Fipe";
 import Settings from "@/pages/Settings";
+import Profile from "@/pages/Profile";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import NotFound from "@/pages/not-found";
@@ -43,6 +44,7 @@ function AuthenticatedRouter() {
               <Route path="/store-expenses" component={StoreExpenses} />
               <Route path="/financial" component={Financial} />
               <Route path="/fipe" component={Fipe} />
+              <Route path="/profile" component={Profile} />
               <Route path="/settings">{() => <AdminRoute component={Settings} />}</Route>
               <Route component={NotFound} />
             </Switch>

@@ -1,8 +1,8 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt, Settings, Search } from "lucide-react";
+import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt, Settings, Search, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
@@ -61,21 +61,27 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-border/50">
-        <div className="flex items-center gap-3 mb-3 px-2">
-          <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-              {getInitials(user?.firstName, user?.lastName)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate" data-testid="text-username">
-              {user?.firstName} {user?.lastName}
-            </p>
-            <Badge variant="secondary" className="text-xs" data-testid="text-user-role">
-              {user?.role}
-            </Badge>
+        <Link href="/profile">
+          <div className="flex items-center gap-3 mb-3 px-2 py-1 rounded-md cursor-pointer hover-elevate" data-testid="link-profile">
+            <Avatar className="h-9 w-9">
+              {user?.profileImageUrl && (
+                <AvatarImage src={user.profileImageUrl} alt={user.firstName || ""} />
+              )}
+              <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                {getInitials(user?.firstName, user?.lastName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold truncate" data-testid="text-username">
+                {user?.firstName} {user?.lastName}
+              </p>
+              <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="text-user-role">
+                {user?.role}
+              </Badge>
+            </div>
+            <UserCog className="w-4 h-4 text-muted-foreground shrink-0" />
           </div>
-        </div>
+        </Link>
         <Button
           variant="ghost"
           className="w-full justify-start text-muted-foreground"
@@ -130,6 +136,15 @@ export function MobileHeader() {
                 </Link>
               );
             })}
+          <Link href="/profile">
+            <div
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 rounded-md font-medium cursor-pointer text-muted-foreground"
+            >
+              <UserCog className="w-5 h-5" />
+              Meu Perfil
+            </div>
+          </Link>
           <div
             onClick={() => logout()}
             className="flex items-center gap-3 px-4 py-3 text-muted-foreground cursor-pointer"

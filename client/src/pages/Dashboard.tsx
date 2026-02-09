@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Car, TrendingUp, TrendingDown, DollarSign, ArrowRight, ShoppingCart, Minus } from "lucide-react";
+import { Car, TrendingUp, TrendingDown, DollarSign, ArrowRight, ShoppingCart, Minus, Wrench, Store } from "lucide-react";
 import { Link } from "wouter";
 
 function formatCurrency(cents: number) {
@@ -35,9 +35,10 @@ export default function Dashboard() {
         description="Visão geral dos veículos e vendas."
       />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         {statsLoading ? (
           <>
+            <StatSkeleton />
             <StatSkeleton />
             <StatSkeleton />
             <StatSkeleton />
@@ -88,14 +89,25 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card data-testid="stat-expenses">
+            <Card data-testid="stat-vehicle-expenses">
               <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Despesas Totais</CardTitle>
-                <DollarSign className="h-4 w-4 text-rose-600" />
+                <CardTitle className="text-sm font-medium text-muted-foreground">Despesas Veículos</CardTitle>
+                <Wrench className="h-4 w-4 text-amber-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold" data-testid="text-total-expenses">{formatCurrency(stats.totalExpenses)}</div>
-                <p className="text-xs text-muted-foreground mt-1">em manutenção e serviços</p>
+                <div className="text-3xl font-bold" data-testid="text-vehicle-expenses">{formatCurrency(stats.totalVehicleExpenses)}</div>
+                <p className="text-xs text-muted-foreground mt-1">manutenção e serviços</p>
+              </CardContent>
+            </Card>
+
+            <Card data-testid="stat-store-expenses">
+              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Despesas da Loja</CardTitle>
+                <Store className="h-4 w-4 text-rose-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold" data-testid="text-store-expenses">{formatCurrency(stats.totalStoreExpenses)}</div>
+                <p className="text-xs text-muted-foreground mt-1">custos operacionais</p>
               </CardContent>
             </Card>
           </>

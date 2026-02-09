@@ -43,6 +43,8 @@ export interface IStorage {
     totalAvailable: number;
     totalSold: number;
     totalExpenses: number;
+    totalVehicleExpenses: number;
+    totalStoreExpenses: number;
     currentMonthSales: number;
     currentMonthRevenue: number;
     previousMonthSales: number;
@@ -316,7 +318,9 @@ export class DatabaseStorage implements IStorage {
       )
     );
 
-    const totalExpenses = Number(vehicleExpenseSum?.total || 0) + Number(storeExpenseSum?.total || 0);
+    const totalVehicleExpenses = Number(vehicleExpenseSum?.total || 0);
+    const totalStoreExpenses = Number(storeExpenseSum?.total || 0);
+    const totalExpenses = totalVehicleExpenses + totalStoreExpenses;
     const currentMonthExpenses = Number(currentMonthVehicleExp?.total || 0) + Number(currentMonthStoreExp?.total || 0);
     const previousMonthExpenses = Number(previousMonthVehicleExp?.total || 0) + Number(previousMonthStoreExp?.total || 0);
 
@@ -325,6 +329,8 @@ export class DatabaseStorage implements IStorage {
       totalAvailable: Number(counts?.available || 0),
       totalSold: Number(counts?.sold || 0),
       totalExpenses,
+      totalVehicleExpenses,
+      totalStoreExpenses,
       currentMonthSales: Number(currentMonthData?.salesCount || 0),
       currentMonthRevenue: Number(currentMonthData?.revenue || 0),
       previousMonthSales: Number(previousMonthData?.salesCount || 0),

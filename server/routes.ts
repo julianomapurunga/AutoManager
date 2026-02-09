@@ -250,6 +250,13 @@ export async function registerRoutes(
   });
 
   // === VEHICLE IMAGES ROUTES ===
+  app.get("/uploads/profiles/:filename", isAuthenticated, (req, res) => {
+    const filename = path.basename(String(req.params.filename));
+    const filePath = path.join(uploadsDir, "profiles", filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ message: "Arquivo não encontrado" });
+    res.sendFile(filePath);
+  });
+
   app.get("/uploads/:filename", isAuthenticated, (req, res) => {
     const filename = path.basename(String(req.params.filename));
     const filePath = path.join(uploadsDir, filename);
@@ -373,6 +380,22 @@ export async function registerRoutes(
       res.json(data);
     } catch (e) {
       res.status(500).json({ message: "Erro ao consultar FIPE" });
+    }
+  });
+
+  app.get("/api/fipe/:vehicleType/:fipeCode/years/:yearId/history", isAuthenticated, async (req, res) => {
+    try {
+      if (!validateVehicleType(req.params.vehicleType, res)) return;
+      const { vehicleType, fipeCode, yearId } = req.params;
+      const response = await fetch(`${FIPE_BASE}/${vehicleType}/${fipeCode}/years/${yearId}/history`);
+      const data = await response.json();
+      if (!response.ok || !Array.isArray(data)) {
+        res.json([]);
+        return;
+      }
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ message: "Erro ao consultar histórico FIPE" });
     }
   });
 

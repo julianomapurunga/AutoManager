@@ -45,6 +45,12 @@ Sistema para controle completo de veículos em pátio de loja, incluindo cadastr
 - 2026-02-06: VehicleForm has collapsible FIPE lookup section with cascading selects that auto-fill brand, model, yearModel, fipeCode, fipePrice
 - 2026-02-06: Dashboard vehicle cards show FIPE price discretely when available
 - 2026-02-06: VehicleDetails page shows FIPE price and code below asking price
+- 2026-02-09: FIPE consultation page shows price history (last 5 years) with line chart, stats cards, and monthly table
+- 2026-02-09: Backend proxy endpoint for FIPE history API (/api/fipe/:vehicleType/:fipeCode/years/:yearId/history)
+- 2026-02-09: Dashboard cards separated: vehicle expenses (maintenance) and store expenses (operational)
+- 2026-02-09: User profile page (/profile) with name editing and profile photo upload
+- 2026-02-09: Profile image upload via multer (5MB, jpg/png/gif/webp), stored in uploads/profiles/
+- 2026-02-09: Sidebar user section links to profile page, shows profile photo when available
 
 ## Project Architecture
 
