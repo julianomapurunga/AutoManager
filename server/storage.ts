@@ -1,11 +1,12 @@
 import { db } from "./db";
 import {
-  people, vehicles, expenses, storeExpenses, vehicleImages,
+  people, vehicles, expenses, storeExpenses, vehicleImages, intermediaries,
   type Person, type InsertPerson,
   type Vehicle, type InsertVehicle, type VehicleWithDetails,
   type Expense, type InsertExpense,
   type StoreExpense, type InsertStoreExpense,
-  type VehicleImage
+  type VehicleImage,
+  type Intermediary, type InsertIntermediary
 } from "@shared/schema";
 import { eq, desc, and, sql, gte, lt, or, ilike } from "drizzle-orm";
 
@@ -23,7 +24,16 @@ export interface IStorage {
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
   updateVehicle(id: number, vehicle: Partial<InsertVehicle>): Promise<Vehicle>;
   deleteVehicle(id: number): Promise<void>;
-  markVehicleAsSold(id: number, salePrice: number, buyerId: number | null, saleDate?: Date): Promise<Vehicle>;
+  markVehicleAsSold(id: number, data: {
+    salePrice: number;
+    buyerId: number | null;
+    saleDate?: Date;
+    saleMileage?: number | null;
+    tradeInVehicleId?: number | null;
+    tradeInValue?: number | null;
+    intermediaryId?: number | null;
+    intermediaryCommission?: number | null;
+  }): Promise<Vehicle>;
 
   getExpensesByVehicle(vehicleId: number): Promise<Expense[]>;
   createExpense(expense: InsertExpense): Promise<Expense>;
@@ -37,6 +47,12 @@ export interface IStorage {
   createVehicleImage(vehicleId: number, fileName: string, filePath: string): Promise<VehicleImage>;
   deleteVehicleImage(id: number): Promise<VehicleImage | undefined>;
   deleteAllVehicleImages(vehicleId: number): Promise<VehicleImage[]>;
+
+  getIntermediaries(): Promise<Intermediary[]>;
+  getIntermediary(id: number): Promise<Intermediary | undefined>;
+  createIntermediary(data: InsertIntermediary): Promise<Intermediary>;
+  updateIntermediary(id: number, data: Partial<InsertIntermediary>): Promise<Intermediary>;
+  deleteIntermediary(id: number): Promise<void>;
 
   getDashboardStats(): Promise<{
     totalVehicles: number;
@@ -151,11 +167,18 @@ export class DatabaseStorage implements IStorage {
       buyer = buyerResult || null;
     }
 
+    let intermediary: Intermediary | null = null;
+    if (result.vehicle.intermediaryId) {
+      const [intResult] = await db.select().from(intermediaries).where(eq(intermediaries.id, result.vehicle.intermediaryId));
+      intermediary = intResult || null;
+    }
+
     return {
       ...result.vehicle,
       owner: result.owner,
       buyer,
       expenses: vehicleExpenses,
+      intermediary,
     };
   }
 
@@ -182,14 +205,28 @@ export class DatabaseStorage implements IStorage {
     await db.delete(vehicles).where(eq(vehicles.id, id));
   }
 
-  async markVehicleAsSold(id: number, salePrice: number, buyerId: number | null, saleDate?: Date): Promise<Vehicle> {
+  async markVehicleAsSold(id: number, data: {
+    salePrice: number;
+    buyerId: number | null;
+    saleDate?: Date;
+    saleMileage?: number | null;
+    tradeInVehicleId?: number | null;
+    tradeInValue?: number | null;
+    intermediaryId?: number | null;
+    intermediaryCommission?: number | null;
+  }): Promise<Vehicle> {
     const [updated] = await db
       .update(vehicles)
       .set({
         status: "Vendido",
-        salePrice,
-        saleDate: saleDate ?? new Date(),
-        buyerId,
+        salePrice: data.salePrice,
+        saleDate: data.saleDate ?? new Date(),
+        buyerId: data.buyerId,
+        saleMileage: data.saleMileage ?? null,
+        tradeInVehicleId: data.tradeInVehicleId ?? null,
+        tradeInValue: data.tradeInValue ?? null,
+        intermediaryId: data.intermediaryId ?? null,
+        intermediaryCommission: data.intermediaryCommission ?? null,
       })
       .where(eq(vehicles.id, id))
       .returning();
@@ -240,6 +277,29 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAllVehicleImages(vehicleId: number): Promise<VehicleImage[]> {
     return await db.delete(vehicleImages).where(eq(vehicleImages.vehicleId, vehicleId)).returning();
+  }
+
+  async getIntermediaries(): Promise<Intermediary[]> {
+    return await db.select().from(intermediaries).orderBy(desc(intermediaries.createdAt));
+  }
+
+  async getIntermediary(id: number): Promise<Intermediary | undefined> {
+    const [result] = await db.select().from(intermediaries).where(eq(intermediaries.id, id));
+    return result;
+  }
+
+  async createIntermediary(data: InsertIntermediary): Promise<Intermediary> {
+    const [result] = await db.insert(intermediaries).values(data).returning();
+    return result;
+  }
+
+  async updateIntermediary(id: number, data: Partial<InsertIntermediary>): Promise<Intermediary> {
+    const [result] = await db.update(intermediaries).set(data).where(eq(intermediaries.id, id)).returning();
+    return result;
+  }
+
+  async deleteIntermediary(id: number): Promise<void> {
+    await db.delete(intermediaries).where(eq(intermediaries.id, id));
   }
 
   async getDashboardStats() {

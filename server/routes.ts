@@ -15,8 +15,22 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+const profilesDir = path.join(uploadsDir, "profiles");
+if (!fs.existsSync(profilesDir)) {
+  fs.mkdirSync(profilesDir, { recursive: true });
+}
+
 const multerStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const name = crypto.randomBytes(16).toString("hex");
+    cb(null, `${name}${ext}`);
+  },
+});
+
+const profileStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, profilesDir),
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);
     const name = crypto.randomBytes(16).toString("hex");
@@ -37,6 +51,19 @@ const upload = multer({
   },
 });
 
+const uploadProfile = multer({
+  storage: profileStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = /\.(jpg|jpeg|png|gif|webp)$/i;
+    if (allowed.test(path.extname(file.originalname))) {
+      cb(null, true);
+    } else {
+      cb(new Error("Apenas imagens são permitidas (jpg, png, gif, webp)"));
+    }
+  },
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -45,7 +72,6 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
 
-  // === PEOPLE ROUTES ===
   app.get(api.people.list.path, isAuthenticated, async (req, res) => {
     const type = req.query.type as string | undefined;
     const people = await storage.getPeople(type);
@@ -104,7 +130,6 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
-  // === VEHICLE ROUTES ===
   app.get(api.vehicles.list.path, isAuthenticated, async (req, res) => {
     const filters = {
       status: req.query.status as string | undefined,
@@ -170,7 +195,6 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
-  // === EXPENSE ROUTES ===
   app.get(api.expenses.listByVehicle.path, isAuthenticated, async (req, res) => {
     const expenses = await storage.getExpensesByVehicle(Number(req.params.vehicleId));
     res.json(expenses);
@@ -197,18 +221,47 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
-  // === MARK AS SOLD ===
   app.post("/api/vehicles/:id/sell", isAuthenticated, async (req, res) => {
     try {
       const input = api.sales.markAsSold.input.parse(req.body);
       const vehicle = await storage.getVehicle(Number(req.params.id));
       if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
-      
+
+      let tradeInVehicleId: number | null = null;
+      if (input.tradeInVehicle) {
+        const tv = input.tradeInVehicle;
+        const tradeIn = await storage.createVehicle({
+          plate: tv.plate,
+          brand: tv.brand as any,
+          model: tv.model,
+          color: tv.color,
+          yearFab: tv.yearFab ?? null,
+          yearModel: tv.yearModel ?? null,
+          condition: tv.condition as any ?? null,
+          mileage: tv.mileage ?? null,
+          acquisitionPrice: tv.acquisitionPrice ?? null,
+          price: tv.price ?? null,
+          fipeCode: tv.fipeCode ?? null,
+          fipePrice: tv.fipePrice ?? null,
+          ownerId: tv.ownerId ?? null,
+          notes: tv.notes ?? null,
+          status: "Aguardando Preparação",
+        });
+        tradeInVehicleId = tradeIn.id;
+      }
+
       const updated = await storage.markVehicleAsSold(
         Number(req.params.id),
-        input.salePrice,
-        input.buyerId ?? null,
-        input.saleDate ? new Date(input.saleDate) : new Date()
+        {
+          salePrice: input.salePrice,
+          buyerId: input.buyerId ?? null,
+          saleDate: input.saleDate ? new Date(input.saleDate) : new Date(),
+          saleMileage: input.saleMileage ?? null,
+          tradeInVehicleId,
+          tradeInValue: input.tradeInValue ?? null,
+          intermediaryId: input.intermediaryId ?? null,
+          intermediaryCommission: input.intermediaryCommission ?? null,
+        }
       );
       res.json(updated);
     } catch (err) {
@@ -222,7 +275,6 @@ export async function registerRoutes(
     }
   });
 
-  // === STORE EXPENSE ROUTES ===
   app.get(api.storeExpenses.list.path, isAuthenticated, async (req, res) => {
     const storeExpenses = await storage.getStoreExpenses();
     res.json(storeExpenses);
@@ -249,7 +301,6 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
-  // === VEHICLE IMAGES ROUTES ===
   app.get("/uploads/profiles/:filename", isAuthenticated, (req, res) => {
     const filename = path.basename(String(req.params.filename));
     const filePath = path.join(uploadsDir, "profiles", filename);
@@ -317,14 +368,64 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
-  // === DASHBOARD ROUTES ===
+  app.get(api.intermediaries.list.path, isAuthenticated, async (_req, res) => {
+    const list = await storage.getIntermediaries();
+    res.json(list);
+  });
+
+  app.get(api.intermediaries.get.path, isAuthenticated, async (req, res) => {
+    const item = await storage.getIntermediary(Number(req.params.id));
+    if (!item) return res.status(404).json({ message: "Intermediário não encontrado" });
+    res.json(item);
+  });
+
+  app.post(api.intermediaries.create.path, isAuthenticated, uploadProfile.single("photo"), async (req, res) => {
+    try {
+      const data: any = {
+        name: req.body.name,
+        cpf: req.body.cpf,
+        birthDate: req.body.birthDate ? new Date(req.body.birthDate) : null,
+        photoUrl: null,
+      };
+      if (req.file) {
+        data.photoUrl = `/uploads/profiles/${req.file.filename}`;
+      }
+      const item = await storage.createIntermediary(data);
+      res.status(201).json(item);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put(api.intermediaries.update.path, isAuthenticated, uploadProfile.single("photo"), async (req, res) => {
+    try {
+      const data: any = {};
+      if (req.body.name) data.name = req.body.name;
+      if (req.body.cpf) data.cpf = req.body.cpf;
+      if (req.body.birthDate) data.birthDate = new Date(req.body.birthDate);
+      if (req.file) {
+        data.photoUrl = `/uploads/profiles/${req.file.filename}`;
+      }
+      const item = await storage.updateIntermediary(Number(req.params.id), data);
+      res.json(item);
+    } catch (err) {
+      return res.status(404).json({ message: "Intermediário não encontrado" });
+    }
+  });
+
+  app.delete(api.intermediaries.delete.path, isAuthenticated, async (req, res) => {
+    await storage.deleteIntermediary(Number(req.params.id));
+    res.status(204).end();
+  });
+
   app.get(api.dashboard.get.path, isAuthenticated, async (req, res) => {
     const stats = await storage.getDashboardStats();
     res.json(stats);
   });
 
-  // === SEED DATA ===
-  // === FIPE API PROXY ===
   const FIPE_BASE = "https://fipe.parallelum.com.br/api/v2";
   const VALID_VEHICLE_TYPES = ["cars", "motorcycles", "trucks"];
 
@@ -444,9 +545,9 @@ async function seedDatabase() {
       return parseInt(digits, 10) || 0;
     };
 
-    const colors = ["Branco", "Prata", "Preto", "Cinza", "Vermelho", "Azul", "Branco Pérola", "Grafite"];
     const statuses: Array<"Disponível" | "Aguardando Preparação" | "Em Manutenção" | "Reservado"> = ["Disponível", "Disponível", "Disponível", "Aguardando Preparação", "Em Manutenção", "Reservado"];
     const owners = [owner1, owner2, owner3, null];
+    const conditions: Array<"Novo" | "Semi-novo" | "Usado"> = ["Semi-novo", "Usado", "Novo"];
 
     const fipeVehicles = [
       { plate: "BRA2E19", brand: "Fiat" as const, model: "ARGO 1.0 6V Flex", yearFab: 2025, yearModel: 2026, fipeCode: "001509-1", fipePrice: "R$ 76.785,00", color: "Branco", notes: "Carro seminovo, revisões em dia" },
@@ -476,8 +577,10 @@ async function seedDatabase() {
       const fipeCents = parseFipePrice(v.fipePrice);
       const priceVariation = 0.9 + Math.random() * 0.2;
       const askingPrice = Math.round(fipeCents * priceVariation);
+      const acquisitionPrice = Math.round(fipeCents * 0.8);
       const owner = owners[i % owners.length];
       const status = statuses[i % statuses.length];
+      const condition = conditions[i % conditions.length];
 
       const vehicle = await storage.createVehicle({
         plate: v.plate,
@@ -486,6 +589,9 @@ async function seedDatabase() {
         color: v.color,
         yearFab: v.yearFab,
         yearModel: v.yearModel,
+        condition,
+        mileage: Math.floor(Math.random() * 100000),
+        acquisitionPrice,
         price: askingPrice,
         status: status,
         ownerId: owner?.id || null,

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Trash2, Edit2, Plus, Calendar, ShoppingCart, ImagePlus, X, Trash, Loader2 } from "lucide-react";
 import { VEHICLE_STATUS } from "@shared/schema";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { VehicleForm } from "@/components/forms/VehicleForm";
+import { VehicleForm, formatCurrencyInput, parseCurrencyToNumber } from "@/components/forms/VehicleForm";
 import { SellVehicleDialog } from "@/components/forms/SellVehicleDialog";
 import { useState, useRef } from "react";
 import { format } from "date-fns";
@@ -64,10 +64,12 @@ export default function VehicleDetails() {
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
+    const amountCents = parseCurrencyToNumber(expenseAmount);
+    if (amountCents <= 0) return;
     expenseMutation.mutate({
       vehicleId: id,
       description: expenseDesc,
-      amount: Math.round(Number(expenseAmount) * 100),
+      amount: amountCents,
     }, {
       onSuccess: () => {
         setIsExpenseOpen(false);
@@ -108,7 +110,8 @@ export default function VehicleDetails() {
 
   const totalExpenses = vehicle.expenses.reduce((sum, e) => sum + e.amount, 0);
   const saleValue = vehicle.salePrice || vehicle.price || 0;
-  const netProfit = saleValue - totalExpenses;
+  const commissionValue = vehicle.intermediaryCommission || 0;
+  const netProfit = saleValue - totalExpenses - commissionValue;
   const isSold = vehicle.status === "Vendido";
 
   return (
@@ -159,7 +162,7 @@ export default function VehicleDetails() {
                 Editar
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Editar Veículo</DialogTitle>
               </DialogHeader>
@@ -171,6 +174,9 @@ export default function VehicleDetails() {
                   color: vehicle.color,
                   yearFab: vehicle.yearFab ?? undefined,
                   yearModel: vehicle.yearModel ?? undefined,
+                  condition: vehicle.condition ?? undefined,
+                  mileage: vehicle.mileage ?? undefined,
+                  acquisitionPrice: vehicle.acquisitionPrice ?? undefined,
                   price: vehicle.price ?? undefined,
                   status: vehicle.status,
                   ownerId: vehicle.ownerId,
@@ -205,6 +211,28 @@ export default function VehicleDetails() {
                 <Label className="text-muted-foreground">Cor</Label>
                 <div className="font-medium text-lg">{vehicle.color}</div>
               </div>
+              {vehicle.condition && (
+                <div>
+                  <Label className="text-muted-foreground">Condição</Label>
+                  <div className="font-medium text-lg" data-testid="text-vehicle-condition">{vehicle.condition}</div>
+                </div>
+              )}
+              {vehicle.mileage != null && (
+                <div>
+                  <Label className="text-muted-foreground">Quilometragem</Label>
+                  <div className="font-medium text-lg" data-testid="text-vehicle-mileage">
+                    {Number(vehicle.mileage).toLocaleString("pt-BR")} km
+                  </div>
+                </div>
+              )}
+              {vehicle.acquisitionPrice != null && vehicle.acquisitionPrice > 0 && (
+                <div>
+                  <Label className="text-muted-foreground">Preço de Aquisição</Label>
+                  <div className="font-medium text-lg font-mono" data-testid="text-acquisition-price">
+                    {formatCurrency(vehicle.acquisitionPrice)}
+                  </div>
+                </div>
+              )}
               <div>
                 <Label className="text-muted-foreground">Preço Pedido</Label>
                 <div className="font-medium text-lg text-emerald-600 font-mono" data-testid="text-asking-price">
@@ -255,6 +283,30 @@ export default function VehicleDetails() {
                       <div className="text-sm text-muted-foreground">{vehicle.buyer.phone}</div>
                     </div>
                   )}
+                  {vehicle.saleMileage != null && (
+                    <div>
+                      <Label className="text-muted-foreground">Km na Venda</Label>
+                      <div className="font-medium text-lg" data-testid="text-sale-mileage">
+                        {Number(vehicle.saleMileage).toLocaleString("pt-BR")} km
+                      </div>
+                    </div>
+                  )}
+                  {vehicle.tradeInValue != null && vehicle.tradeInValue > 0 && (
+                    <div>
+                      <Label className="text-muted-foreground">Valor do Veículo na Troca</Label>
+                      <div className="font-medium text-lg font-mono" data-testid="text-trade-in-value">
+                        {formatCurrency(vehicle.tradeInValue)}
+                      </div>
+                    </div>
+                  )}
+                  {vehicle.intermediaryCommission != null && vehicle.intermediaryCommission > 0 && (
+                    <div>
+                      <Label className="text-muted-foreground">Comissão Intermediário</Label>
+                      <div className="font-medium text-lg font-mono" data-testid="text-intermediary-commission">
+                        {formatCurrency(vehicle.intermediaryCommission)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -292,6 +344,12 @@ export default function VehicleDetails() {
                 <span>(-) Despesas</span>
                 <span className="font-mono font-medium">{formatCurrency(totalExpenses)}</span>
               </div>
+              {commissionValue > 0 && (
+                <div className="flex justify-between items-center gap-2 text-rose-300">
+                  <span>(-) Comissão</span>
+                  <span className="font-mono font-medium">{formatCurrency(commissionValue)}</span>
+                </div>
+              )}
               <Separator className="bg-slate-700" />
               <div className="flex justify-between items-center gap-2 text-lg font-bold">
                 <span className="text-emerald-400">Lucro {isSold ? "" : "Estimado"}</span>
@@ -327,11 +385,9 @@ export default function VehicleDetails() {
                     <div className="space-y-2">
                       <Label>Valor (R$)</Label>
                       <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
+                        placeholder="R$ 0,00"
                         value={expenseAmount}
-                        onChange={(e) => setExpenseAmount(e.target.value)}
+                        onChange={(e) => setExpenseAmount(formatCurrencyInput(e.target.value))}
                         required
                         data-testid="input-expense-amount"
                       />

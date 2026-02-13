@@ -1,11 +1,8 @@
 import { z } from 'zod';
-import { insertPersonSchema, insertVehicleSchema, insertExpenseSchema, insertStoreExpenseSchema, people, vehicles, expenses, storeExpenses } from './schema';
+import { insertPersonSchema, insertVehicleSchema, insertExpenseSchema, insertStoreExpenseSchema, insertIntermediarySchema, people, vehicles, expenses, storeExpenses, intermediaries } from './schema';
 
-export type { Person, Vehicle, Expense, StoreExpense, InsertPerson, InsertVehicle, InsertExpense, InsertStoreExpense, VehicleWithDetails } from './schema';
+export type { Person, Vehicle, Expense, StoreExpense, InsertPerson, InsertVehicle, InsertExpense, InsertStoreExpense, VehicleWithDetails, Intermediary, InsertIntermediary } from './schema';
 
-// ============================================
-// SHARED ERROR SCHEMAS
-// ============================================
 export const errorSchemas = {
   validation: z.object({
     message: z.string(),
@@ -19,16 +16,13 @@ export const errorSchemas = {
   }),
 };
 
-// ============================================
-// API CONTRACT
-// ============================================
 export const api = {
   people: {
     list: {
       method: 'GET' as const,
       path: '/api/people',
       input: z.object({
-        type: z.string().optional(), // Filter by 'Proprietário' or 'Cliente'
+        type: z.string().optional(),
         search: z.string().optional(),
       }).optional(),
       responses: {
@@ -174,6 +168,26 @@ export const api = {
         salePrice: z.number(),
         buyerId: z.number().nullable().optional(),
         saleDate: z.string().optional(),
+        saleMileage: z.number().nullable().optional(),
+        tradeInVehicle: z.object({
+          plate: z.string(),
+          brand: z.string(),
+          model: z.string(),
+          color: z.string(),
+          yearFab: z.number().nullable().optional(),
+          yearModel: z.number().nullable().optional(),
+          condition: z.string().nullable().optional(),
+          mileage: z.number().nullable().optional(),
+          acquisitionPrice: z.number().nullable().optional(),
+          price: z.number().nullable().optional(),
+          fipeCode: z.string().nullable().optional(),
+          fipePrice: z.string().nullable().optional(),
+          ownerId: z.number().nullable().optional(),
+          notes: z.string().nullable().optional(),
+        }).nullable().optional(),
+        tradeInValue: z.number().nullable().optional(),
+        intermediaryId: z.number().nullable().optional(),
+        intermediaryCommission: z.number().nullable().optional(),
       }),
       responses: {
         200: z.custom<typeof vehicles.$inferSelect>(),
@@ -201,6 +215,49 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/store-expenses/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+  intermediaries: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/intermediaries',
+      responses: {
+        200: z.array(z.custom<typeof intermediaries.$inferSelect>()),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/intermediaries',
+      input: insertIntermediarySchema,
+      responses: {
+        201: z.custom<typeof intermediaries.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/intermediaries/:id',
+      responses: {
+        200: z.custom<typeof intermediaries.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/intermediaries/:id',
+      input: insertIntermediarySchema.partial(),
+      responses: {
+        200: z.custom<typeof intermediaries.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/intermediaries/:id',
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,
