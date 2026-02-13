@@ -74,6 +74,22 @@ export function centsToFormattedCurrency(cents: number): string {
   return `R$ ${formatted},${decPart}`;
 }
 
+export function formatMileageInput(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+export function parseMileageToNumber(value: string): number {
+  const digits = value.replace(/\D/g, "");
+  return parseInt(digits, 10) || 0;
+}
+
+export function numberToFormattedMileage(num: number | null | undefined): string {
+  if (!num) return "";
+  return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
 const FIPE_BRAND_TO_SYSTEM: Record<string, string> = {
   "toyota": "Toyota",
   "honda": "Honda",
@@ -118,6 +134,11 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
   const [priceDisplay, setPriceDisplay] = useState(() => {
     const p = defaultValues?.price;
     if (typeof p === "number" && p > 0) return centsToFormattedCurrency(p);
+    return "";
+  });
+  const [mileageDisplay, setMileageDisplay] = useState(() => {
+    const m = defaultValues?.mileage;
+    if (m != null && Number(m) > 0) return numberToFormattedMileage(Number(m));
     return "";
   });
 
@@ -179,14 +200,21 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
     form.setValue("price", String(parseCurrencyToNumber(e.target.value)));
   };
 
+  const handleMileageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatMileageInput(e.target.value);
+    setMileageDisplay(formatted);
+    form.setValue("mileage", parseMileageToNumber(e.target.value) as any);
+  };
+
   const handleSubmit = (data: FormData) => {
     const acquisitionPriceCents = parseCurrencyToNumber(acquisitionDisplay);
     const priceCents = parseCurrencyToNumber(priceDisplay);
+    const mileageNum = parseMileageToNumber(mileageDisplay);
     onSubmit({
       ...data,
       acquisitionPrice: acquisitionPriceCents || null,
       price: priceCents || null,
-      mileage: data.mileage || null,
+      mileage: mileageNum || null,
       condition: data.condition || null,
       ownerId: selectedOwner?.id || null,
     });
@@ -449,15 +477,14 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
           <FormField
             control={form.control}
             name="mileage"
-            render={({ field }) => (
+            render={() => (
               <FormItem>
                 <FormLabel>Quilometragem (km)</FormLabel>
                 <FormControl>
                   <Input
-                    type="number"
-                    placeholder="Ex: 45000"
-                    {...field}
-                    value={field.value ?? ""}
+                    placeholder="Ex: 45.000"
+                    value={mileageDisplay}
+                    onChange={handleMileageChange}
                     data-testid="input-mileage"
                   />
                 </FormControl>

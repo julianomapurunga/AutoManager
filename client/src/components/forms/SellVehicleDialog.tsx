@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useMarkAsSold } from "@/hooks/use-vehicles";
 import { useIntermediaries } from "@/hooks/use-intermediaries";
 import { CpfPersonLookup } from "./CpfPersonLookup";
-import { formatCurrencyInput, parseCurrencyToNumber, centsToFormattedCurrency } from "./VehicleForm";
+import { formatCurrencyInput, parseCurrencyToNumber, centsToFormattedCurrency, formatMileageInput, parseMileageToNumber } from "./VehicleForm";
 import { Calendar, Car, Users, Search, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { VEHICLE_BRANDS, VEHICLE_CONDITIONS } from "@shared/schema";
 import type { Person } from "@shared/schema";
@@ -130,7 +130,7 @@ export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, o
       salePrice: salePriceCents,
       buyerId: selectedBuyer?.id || null,
       saleDate,
-      saleMileage: saleMileage ? Number(saleMileage) : null,
+      saleMileage: saleMileage ? parseMileageToNumber(saleMileage) : null,
     };
 
     if (hasTradeIn && tradeInPlate && tradeInModel) {
@@ -142,7 +142,7 @@ export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, o
         yearFab: tradeInYearFab ? Number(tradeInYearFab) : null,
         yearModel: tradeInYearModel ? Number(tradeInYearModel) : null,
         condition: tradeInCondition || null,
-        mileage: tradeInMileage ? Number(tradeInMileage) : null,
+        mileage: tradeInMileage ? parseMileageToNumber(tradeInMileage) : null,
         acquisitionPrice: parseCurrencyToNumber(tradeInValueDisplay) || null,
         fipeCode: tradeInFipeCode,
         fipePrice: tradeInFipePrice,
@@ -229,10 +229,9 @@ export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, o
           <div className="space-y-2">
             <Label>Quilometragem na Venda (km)</Label>
             <Input
-              type="number"
-              placeholder="Ex: 55000"
+              placeholder="Ex: 55.000"
               value={saleMileage}
-              onChange={(e) => setSaleMileage(e.target.value)}
+              onChange={(e) => setSaleMileage(formatMileageInput(e.target.value))}
               data-testid="input-sale-mileage"
             />
           </div>
@@ -378,7 +377,7 @@ export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, o
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">KM</Label>
-                    <Input type="number" placeholder="45000" value={tradeInMileage} onChange={(e) => setTradeInMileage(e.target.value)} data-testid="input-trade-mileage" />
+                    <Input placeholder="45.000" value={tradeInMileage} onChange={(e) => setTradeInMileage(formatMileageInput(e.target.value))} data-testid="input-trade-mileage" />
                   </div>
                 </div>
                 <div className="space-y-1">

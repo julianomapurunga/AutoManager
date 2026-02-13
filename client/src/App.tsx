@@ -15,8 +15,8 @@ import Financial from "@/pages/Financial";
 import Fipe from "@/pages/Fipe";
 import Settings from "@/pages/Settings";
 import Profile from "@/pages/Profile";
+import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
-import RegisterPage from "@/pages/RegisterPage";
 import NotFound from "@/pages/not-found";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -67,20 +67,20 @@ function LoadingScreen() {
   );
 }
 
-function AuthPages() {
-  const [page, setPage] = useState<"login" | "register">("login");
+function UnauthenticatedPages() {
+  const [page, setPage] = useState<"landing" | "login">("landing");
 
-  if (page === "register") {
-    return <RegisterPage onSwitchToLogin={() => setPage("login")} />;
+  if (page === "login") {
+    return <LoginPage onBackToLanding={() => setPage("landing")} />;
   }
-  return <LoginPage onSwitchToRegister={() => setPage("register")} />;
+  return <LandingPage onGoToLogin={() => setPage("login")} />;
 }
 
 function AppContent() {
   const { user, isLoading } = useAuth();
 
   if (isLoading) return <LoadingScreen />;
-  if (!user) return <AuthPages />;
+  if (!user) return <UnauthenticatedPages />;
   return <AuthenticatedRouter />;
 }
 
