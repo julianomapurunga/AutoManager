@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Car, BarChart3, Users, Shield, ArrowRight, Wrench,
-  DollarSign, FileText, Search, TrendingUp, CheckCircle2, LogIn
+  DollarSign, FileText, Search, TrendingUp, CheckCircle2, LogIn, History
 } from "lucide-react";
 
 interface LandingPageProps {
@@ -32,14 +32,14 @@ const features = [
     description: "Visualize estatísticas do estoque, veículos disponíveis, vendidos e o resumo financeiro completo.",
   },
   {
-    icon: DollarSign,
-    title: "Gestão de Vendas",
-    description: "Registre vendas com valor, comprador, veículo de troca, comissão de intermediário e controle de lucro por veículo.",
+    icon: Shield,
+    title: "Segurança e Auditoria",
+    description: "Rastreabilidade total com log de atividades detalhado. Matriz de permissões clara para Administradores, Gerentes, Vendedores e Financeiro.",
   },
   {
     icon: Search,
-    title: "Consulta FIPE",
-    description: "Consulte o valor de mercado dos veículos diretamente pela Tabela FIPE, com histórico de preços e gráficos.",
+    title: "Inteligência FIPE",
+    description: "Consulta automática de preços de mercado, histórico de valores dos últimos anos e preenchimento inteligente de dados técnicos.",
   },
 ];
 
@@ -50,8 +50,11 @@ const highlights = [
   "Comissão de intermediários",
   "Relatórios financeiros detalhados",
   "Consulta automática Tabela FIPE",
+  "Histórico de preços FIPE dos últimos 5 anos",
   "Despesas por veículo e da loja",
   "Gestão de usuários com permissões",
+  "Log de auditoria completo para administradores",
+  "Matriz de acesso por cargo (Gerente, Vendedor, Financeiro)",
 ];
 
 export default function LandingPage({ onGoToLogin }: LandingPageProps) {

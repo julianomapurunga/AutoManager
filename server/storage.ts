@@ -1,13 +1,15 @@
 import { db } from "./db";
 import {
-  people, vehicles, expenses, storeExpenses, vehicleImages, intermediaries,
+  people, vehicles, expenses, storeExpenses, vehicleImages, intermediaries, auditLogs,
   type Person, type InsertPerson,
   type Vehicle, type InsertVehicle, type VehicleWithDetails,
   type Expense, type InsertExpense,
   type StoreExpense, type InsertStoreExpense,
   type VehicleImage,
-  type Intermediary, type InsertIntermediary
+  type Intermediary, type InsertIntermediary,
+  type AuditLog, type InsertAuditLog
 } from "@shared/schema";
+import { users, type User } from "@shared/models/auth";
 import { eq, desc, and, sql, gte, lt, or, ilike } from "drizzle-orm";
 
 export interface IStorage {
@@ -53,6 +55,9 @@ export interface IStorage {
   createIntermediary(data: InsertIntermediary): Promise<Intermediary>;
   updateIntermediary(id: number, data: Partial<InsertIntermediary>): Promise<Intermediary>;
   deleteIntermediary(id: number): Promise<void>;
+  
+  getAuditLogs(): Promise<(AuditLog & { user: User | null })[]>;
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
 
   getDashboardStats(): Promise<{
     totalVehicles: number;
@@ -100,6 +105,12 @@ export class DatabaseStorage implements IStorage {
 
   async createPerson(insertPerson: InsertPerson): Promise<Person> {
     const [person] = await db.insert(people).values(insertPerson).returning();
+    await this.createAuditLog({
+      action: "Criar",
+      entityType: "Pessoa",
+      entityId: person.id,
+      details: `Pessoa ${person.name} criada`,
+    });
     return person;
   }
 
@@ -109,10 +120,22 @@ export class DatabaseStorage implements IStorage {
       .set(updates)
       .where(eq(people.id, id))
       .returning();
+    await this.createAuditLog({
+      action: "Atualizar",
+      entityType: "Pessoa",
+      entityId: updated.id,
+      details: `Pessoa ${updated.name} atualizada`,
+    });
     return updated;
   }
 
   async deletePerson(id: number): Promise<void> {
+    await this.createAuditLog({
+      action: "Excluir",
+      entityType: "Pessoa",
+      entityId: id,
+      details: `Pessoa ID ${id} excluída`,
+    });
     await db.delete(people).where(eq(people.id, id));
   }
 
@@ -189,6 +212,12 @@ export class DatabaseStorage implements IStorage {
 
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
     const [vehicle] = await db.insert(vehicles).values(insertVehicle).returning();
+    await this.createAuditLog({
+      action: "Criar",
+      entityType: "Veículo",
+      entityId: vehicle.id,
+      details: `Veículo ${vehicle.brand} ${vehicle.model} (${vehicle.plate}) criado`,
+    });
     return vehicle;
   }
 
@@ -198,10 +227,22 @@ export class DatabaseStorage implements IStorage {
       .set(updates)
       .where(eq(vehicles.id, id))
       .returning();
+    await this.createAuditLog({
+      action: "Atualizar",
+      entityType: "Veículo",
+      entityId: updated.id,
+      details: `Veículo ${updated.brand} ${updated.model} (${updated.plate}) atualizado`,
+    });
     return updated;
   }
 
   async deleteVehicle(id: number): Promise<void> {
+    await this.createAuditLog({
+      action: "Excluir",
+      entityType: "Veículo",
+      entityId: id,
+      details: `Veículo ID ${id} excluído`,
+    });
     await db.delete(vehicles).where(eq(vehicles.id, id));
   }
 
@@ -230,6 +271,14 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(vehicles.id, id))
       .returning();
+
+    await this.createAuditLog({
+      action: "Venda",
+      entityType: "Veículo",
+      entityId: updated.id,
+      details: `Veículo ${updated.brand} ${updated.model} (${updated.plate}) marcado como vendido por R$ ${(data.salePrice / 100).toFixed(2)}`,
+    });
+
     return updated;
   }
 
@@ -300,6 +349,24 @@ export class DatabaseStorage implements IStorage {
 
   async deleteIntermediary(id: number): Promise<void> {
     await db.delete(intermediaries).where(eq(intermediaries.id, id));
+  }
+
+  async getAuditLogs(): Promise<(AuditLog & { user: User | null })[]> {
+    const result = await db.select({
+      log: auditLogs,
+      user: users,
+    })
+    .from(auditLogs)
+    .leftJoin(users, eq(auditLogs.userId, users.id))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(200);
+
+    return result.map(({ log, user }) => ({ ...log, user }));
+  }
+
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [result] = await db.insert(auditLogs).values(log).returning();
+    return result;
   }
 
   async getDashboardStats() {

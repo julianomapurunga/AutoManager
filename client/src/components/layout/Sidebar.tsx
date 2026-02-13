@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt, Settings, Search, UserCog } from "lucide-react";
+import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt, Settings, Search, UserCog, History, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,6 +14,8 @@ const items = [
   { href: "/store-expenses", icon: Receipt, label: "Despesas da Loja", adminOnly: false },
   { href: "/financial", icon: BarChart3, label: "Financeiro", adminOnly: false },
   { href: "/fipe", icon: Search, label: "FIPE", adminOnly: false },
+  { href: "/permissions", icon: Shield, label: "Permissões", roles: ["Administrador", "Gerente"] },
+  { href: "/activity-log", icon: History, label: "Log de Atividades", adminOnly: true },
   { href: "/settings", icon: Settings, label: "Configurações", adminOnly: true },
 ];
 
@@ -38,7 +40,11 @@ export function Sidebar() {
 
       <nav className="flex-1 p-4 space-y-1">
         {items
-          .filter((item) => !item.adminOnly || user?.role === "Administrador")
+          .filter((item) => {
+            if (item.adminOnly) return user?.role === "Administrador";
+            if (item.roles) return item.roles.includes(user?.role || "");
+            return true;
+          })
           .map((item) => {
             const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
             return (
@@ -116,7 +122,11 @@ export function MobileHeader() {
       {open && (
         <div className="md:hidden bg-card border-b border-border px-4 pb-4 space-y-1 sticky top-16 z-40">
           {items
-            .filter((item) => !item.adminOnly || user?.role === "Administrador")
+            .filter((item) => {
+              if (item.adminOnly) return user?.role === "Administrador";
+              if (item.roles) return item.roles.includes(user?.role || "");
+              return true;
+            })
             .map((item) => {
               const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
               return (

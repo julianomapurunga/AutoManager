@@ -15,6 +15,8 @@ import Financial from "@/pages/Financial";
 import Fipe from "@/pages/Fipe";
 import Settings from "@/pages/Settings";
 import Profile from "@/pages/Profile";
+import ActivityLog from "@/pages/ActivityLog";
+import PermissionsPage from "@/pages/PermissionsPage";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import NotFound from "@/pages/not-found";
@@ -26,6 +28,14 @@ function AdminRoute({ component: Component }: { component: () => JSX.Element }) 
     return <Redirect to="/" />;
   }
   return <Component />;
+}
+
+function PermissionsRoute() {
+  const { user } = useAuth();
+  if (user?.role !== "Administrador" && user?.role !== "Gerente") {
+    return <Redirect to="/" />;
+  }
+  return <PermissionsPage />;
 }
 
 function AuthenticatedRouter() {
@@ -46,6 +56,8 @@ function AuthenticatedRouter() {
               <Route path="/fipe" component={Fipe} />
               <Route path="/profile" component={Profile} />
               <Route path="/settings">{() => <AdminRoute component={Settings} />}</Route>
+              <Route path="/activity-log">{() => <AdminRoute component={ActivityLog} />}</Route>
+              <Route path="/permissions" component={PermissionsRoute} />
               <Route component={NotFound} />
             </Switch>
           </div>

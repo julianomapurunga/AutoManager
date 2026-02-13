@@ -2,6 +2,7 @@ import { pgTable, text, serial, integer, boolean, timestamp, numeric } from "dri
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { users } from "./models/auth";
 
 export const VEHICLE_BRANDS = [
   "Toyota", "Honda", "Ford", "Chevrolet", "Volkswagen", 
@@ -170,4 +171,22 @@ export type VehicleWithDetails = Vehicle & {
   intermediary?: Intermediary | null;
 };
 
-export * from "./models/auth";
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: integer("entity_id"),
+  details: text("details"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [auditLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;

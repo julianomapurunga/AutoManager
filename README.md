@@ -19,14 +19,15 @@ AutoManager é um sistema completo para gestão de estoque e controle financeiro
 - **Resumo de Lucro**: Cálculo automático de lucro por veículo descontando despesas e comissões.
 
 ### 📊 Inteligência e Relatórios
-- **Integração FIPE**: Consulta automática de preços de mercado, histórico de valores e preenchimento automático de dados.
-- **Dashboard**: Visão geral de vendas mensais, faturamento, despesas e estatísticas de estoque.
+- **Integração FIPE**: Consulta automática de preços de mercado, histórico de valores dos últimos 5 anos e preenchimento automático de dados técnicos.
+- **Dashboard**: Visão geral de faturamento, despesas operacionais e por veículo, e estatísticas de estoque.
 - **Relatório Financeiro**: Visão detalhada de receitas, custos e lucro líquido mensal.
 
-### 👤 Segurança e Usuários
-- **Níveis de Acesso**: Papéis de Administrador (acesso total) e Vendedor (acesso restrito).
-- **Gestão de Pessoas**: Cadastro centralizado de Proprietários, Clientes e Intermediários.
-- **Autenticação Segura**: Sistema de login protegido com sessões criptografadas.
+### 👤 Segurança e Auditoria
+- **Níveis de Acesso**: Papéis de Administrador, Gerente, Vendedor e Financeiro com permissões granulares.
+- **Matriz de Permissões**: Página dedicada para visualização dos níveis de acesso por módulo.
+- **Log de Auditoria**: Rastreabilidade total de todas as ações importantes (criação, edição, exclusão e vendas) realizada por cada usuário.
+- **Gestão de Usuários**: Cadastro centralizado realizado apenas por administradores.
 
 ## 🛠️ Tecnologias Utilizadas
 

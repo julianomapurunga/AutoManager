@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { authStorage } from "./storage";
-import { isAuthenticated, isAdmin } from "./replitAuth";
+import { isAuthenticated, isAdmin, isGerente, isFinanceiro } from "./replitAuth";
 import { updateUserSchema, registerSchema } from "@shared/models/auth";
 import { z } from "zod";
 

@@ -96,3 +96,25 @@ export const isAdmin: RequestHandler = async (req, res, next) => {
   }
   next();
 };
+
+export const isGerente: RequestHandler = async (req, res, next) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const user = await authStorage.getUser(req.session.userId);
+  if (!user || (user.role !== "Administrador" && user.role !== "Gerente")) {
+    return res.status(403).json({ message: "Acesso negado: Acesso restrito a Gerentes ou Administradores" });
+  }
+  next();
+};
+
+export const isFinanceiro: RequestHandler = async (req, res, next) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const user = await authStorage.getUser(req.session.userId);
+  if (!user || (user.role !== "Administrador" && user.role !== "Gerente" && user.role !== "Financeiro")) {
+    return res.status(403).json({ message: "Acesso negado: Acesso restrito ao setor Financeiro" });
+  }
+  next();
+};
