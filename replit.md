@@ -4,6 +4,10 @@
 Sistema para controle completo de veículos em pátio de loja, incluindo cadastro de veículos, proprietários, clientes e controle financeiro de despesas. Baseado em planilha física de controle de carros.
 
 ## Recent Changes
+- 2026-02-13: Version control system: shared/version.ts with APP_VERSION constant and CHANGELOG array
+- 2026-02-13: Changelog page (/changelog) with visual history of all versions, accessible to Admin/Gerente
+- 2026-02-13: Version displayed in Sidebar footer and Landing Page footer
+- 2026-02-13: "Changelog" navigation item added to sidebar (Admin/Gerente only)
 - 2026-02-06: Initial system creation with vehicles, people, expenses CRUD
 - 2026-02-06: Added Replit Auth integration for user authentication
 - 2026-02-06: Created landing page for unauthenticated users

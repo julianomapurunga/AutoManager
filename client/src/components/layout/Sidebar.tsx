@@ -1,11 +1,12 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt, Settings, Search, UserCog, History, Shield } from "lucide-react";
+import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt, Settings, Search, UserCog, History, Shield, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
+import { APP_VERSION } from "@shared/version";
 
 const items = [
   { href: "/", icon: LayoutDashboard, label: "Dashboard", adminOnly: false },
@@ -15,6 +16,7 @@ const items = [
   { href: "/financial", icon: BarChart3, label: "Financeiro", adminOnly: false },
   { href: "/fipe", icon: Search, label: "FIPE", adminOnly: false },
   { href: "/permissions", icon: Shield, label: "Permissões", roles: ["Administrador", "Gerente"] },
+  { href: "/changelog", icon: FileText, label: "Changelog", roles: ["Administrador", "Gerente"] },
   { href: "/activity-log", icon: History, label: "Log de Atividades", adminOnly: true },
   { href: "/settings", icon: Settings, label: "Configurações", adminOnly: true },
 ];
@@ -66,7 +68,7 @@ export function Sidebar() {
           })}
       </nav>
 
-      <div className="p-4 border-t border-border/50">
+      <div className="p-4 border-t border-border/50 space-y-3">
         <Link href="/profile">
           <div className="flex items-center gap-3 mb-3 px-2 py-1 rounded-md cursor-pointer hover-elevate" data-testid="link-profile">
             <Avatar className="h-9 w-9">
@@ -97,6 +99,9 @@ export function Sidebar() {
           <LogOut className="w-4 h-4 mr-2" />
           Sair
         </Button>
+        <p className="text-xs text-muted-foreground/60 text-center" data-testid="text-app-version">
+          v{APP_VERSION}
+        </p>
       </div>
     </aside>
   );

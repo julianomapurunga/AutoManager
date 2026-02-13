@@ -17,6 +17,7 @@ import Settings from "@/pages/Settings";
 import Profile from "@/pages/Profile";
 import ActivityLog from "@/pages/ActivityLog";
 import PermissionsPage from "@/pages/PermissionsPage";
+import ChangelogPage from "@/pages/ChangelogPage";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import NotFound from "@/pages/not-found";
@@ -36,6 +37,14 @@ function PermissionsRoute() {
     return <Redirect to="/" />;
   }
   return <PermissionsPage />;
+}
+
+function ChangelogRoute() {
+  const { user } = useAuth();
+  if (user?.role !== "Administrador" && user?.role !== "Gerente") {
+    return <Redirect to="/" />;
+  }
+  return <ChangelogPage />;
 }
 
 function AuthenticatedRouter() {
@@ -58,6 +67,7 @@ function AuthenticatedRouter() {
               <Route path="/settings">{() => <AdminRoute component={Settings} />}</Route>
               <Route path="/activity-log">{() => <AdminRoute component={ActivityLog} />}</Route>
               <Route path="/permissions" component={PermissionsRoute} />
+              <Route path="/changelog" component={ChangelogRoute} />
               <Route component={NotFound} />
             </Switch>
           </div>

@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { APP_VERSION } from "@shared/version";
 import {
   Car, BarChart3, Users, Shield, ArrowRight, Wrench,
   DollarSign, FileText, Search, TrendingUp, CheckCircle2, LogIn, History
@@ -172,7 +173,7 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
             <Car className="w-4 h-4 text-primary" />
             <span className="font-display font-semibold">AutoManager</span>
           </div>
-          <p>&copy; {new Date().getFullYear()} AutoManager. Sistema de Controle de Pátio de Veículos.</p>
+          <p>&copy; {new Date().getFullYear()} AutoManager v{APP_VERSION} — Sistema de Controle de Pátio de Veículos.</p>
         </div>
       </footer>
     </div>
