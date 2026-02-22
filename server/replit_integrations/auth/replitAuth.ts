@@ -21,8 +21,12 @@ export function getSession() {
     ttl: sessionTtl,
     tableName: "sessions",
   });
+  const secret = process.env.SESSION_SECRET ?? (process.env.NODE_ENV === "production" ? undefined : "dev-secret-nao-usar-em-producao");
+  if (!secret) {
+    throw new Error("SESSION_SECRET must be set in .env for production");
+  }
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
