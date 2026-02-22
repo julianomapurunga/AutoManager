@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from "@/hooks/use-users";
+import { useIntermediaries, useCreateIntermediary, useUpdateIntermediary, useDeleteIntermediary } from "@/hooks/use-intermediaries";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,8 +23,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Settings as SettingsIcon, UserPlus, Pencil, Trash2, Shield, ShieldCheck, Search, Eye, EyeOff } from "lucide-react";
+import { Settings as SettingsIcon, UserPlus, Pencil, Trash2, Shield, ShieldCheck, Search, Eye, EyeOff, Users, Camera, CalendarDays } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Intermediary } from "@shared/schema";
 
 type CreateUserForm = z.infer<typeof registerSchema>;
 type UpdateUserForm = z.infer<typeof updateUserSchema>;
@@ -91,7 +95,7 @@ export default function Settings() {
             <SettingsIcon className="w-7 h-7 text-primary" />
             Configurações
           </h1>
-          <p className="text-muted-foreground mt-1">Gerencie os usuários e permissões do sistema</p>
+          <p className="text-muted-foreground mt-1">Gerencie os usuários, intermediários e permissões do sistema</p>
         </div>
         <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-user">
           <UserPlus className="w-4 h-4 mr-2" />
@@ -180,6 +184,8 @@ export default function Settings() {
         </CardContent>
       </Card>
 
+      <IntermediarySection />
+
       <CreateUserDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
@@ -230,6 +236,284 @@ export default function Settings() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function IntermediarySection() {
+  const { data: intermediaries, isLoading } = useIntermediaries();
+  const createIntermediary = useCreateIntermediary();
+  const updateIntermediary = useUpdateIntermediary();
+  const deleteIntermediary = useDeleteIntermediary();
+  const { toast } = useToast();
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<Intermediary | null>(null);
+  const [deleting, setDeleting] = useState<Intermediary | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filtered = intermediaries?.filter((i) => {
+    if (!search) return true;
+    const term = search.toLowerCase();
+    return i.name.toLowerCase().includes(term) || i.cpf.includes(term);
+  });
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    try {
+      await deleteIntermediary.mutateAsync(deleting.id);
+      setDeleting(null);
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir intermediário", variant: "destructive" });
+    }
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            Intermediários (Corretores)
+          </CardTitle>
+          <div className="flex items-center gap-3">
+            <div className="relative w-52">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-intermediaries"
+              />
+            </div>
+            <Button onClick={() => setShowCreate(true)} data-testid="button-create-intermediary">
+              <UserPlus className="w-4 h-4 mr-2" />
+              Novo
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
+            </div>
+          ) : filtered && filtered.length > 0 ? (
+            <div className="space-y-2">
+              {filtered.map((int) => (
+                <div
+                  key={int.id}
+                  className="flex items-center justify-between gap-4 p-4 rounded-md border border-border flex-wrap"
+                  data-testid={`row-intermediary-${int.id}`}
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <Avatar className="w-10 h-10 shrink-0">
+                      {int.photoUrl ? (
+                        <AvatarImage src={int.photoUrl} alt={int.name} />
+                      ) : null}
+                      <AvatarFallback>{int.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate" data-testid={`text-intermediary-name-${int.id}`}>
+                        {int.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground truncate">
+                        CPF: {int.cpf}
+                        {int.birthDate && (
+                          <span className="ml-2">
+                            <CalendarDays className="w-3 h-3 inline mr-0.5" />
+                            {new Date(int.birthDate).toLocaleDateString("pt-BR")}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => setEditing(int)} data-testid={`button-edit-intermediary-${int.id}`}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleting(int)} data-testid={`button-delete-intermediary-${int.id}`}>
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-8">
+              {intermediaries?.length === 0 ? "Nenhum intermediário cadastrado." : "Nenhum resultado encontrado."}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <IntermediaryFormDialog
+        open={showCreate}
+        onOpenChange={setShowCreate}
+        onSubmit={async (formData) => {
+          await createIntermediary.mutateAsync(formData);
+          setShowCreate(false);
+        }}
+        isPending={createIntermediary.isPending}
+      />
+
+      {editing && (
+        <IntermediaryFormDialog
+          open={!!editing}
+          onOpenChange={(open) => !open && setEditing(null)}
+          intermediary={editing}
+          onSubmit={async (formData) => {
+            await updateIntermediary.mutateAsync({ id: editing.id, data: formData });
+            setEditing(null);
+          }}
+          isPending={updateIntermediary.isPending}
+        />
+      )}
+
+      <Dialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja excluir o intermediário <strong>{deleting?.name}</strong>?
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleting(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteIntermediary.isPending} data-testid="button-confirm-delete-intermediary">
+              {deleteIntermediary.isPending ? "Excluindo..." : "Excluir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function IntermediaryFormDialog({
+  open,
+  onOpenChange,
+  intermediary,
+  onSubmit,
+  isPending,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  intermediary?: Intermediary;
+  onSubmit: (data: FormData) => Promise<void>;
+  isPending: boolean;
+}) {
+  const [name, setName] = useState(intermediary?.name || "");
+  const [cpf, setCpf] = useState(intermediary?.cpf || "");
+  const [birthDate, setBirthDate] = useState(
+    intermediary?.birthDate ? new Date(intermediary.birthDate).toISOString().split("T")[0] : ""
+  );
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(intermediary?.photoUrl || null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName(intermediary?.name || "");
+      setCpf(intermediary?.cpf || "");
+      setBirthDate(intermediary?.birthDate ? new Date(intermediary.birthDate).toISOString().split("T")[0] : "");
+      setPhotoFile(null);
+      setPhotoPreview(intermediary?.photoUrl || null);
+    }
+  }, [open, intermediary]);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !cpf.trim()) return;
+
+    const formData = new FormData();
+    formData.append("name", name.trim());
+    formData.append("cpf", cpf.trim());
+    if (birthDate) formData.append("birthDate", birthDate);
+    if (photoFile) formData.append("photo", photoFile);
+
+    await onSubmit(formData);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{intermediary ? "Editar Intermediário" : "Novo Intermediário"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <Avatar className="w-16 h-16 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                {photoPreview ? (
+                  <AvatarImage src={photoPreview} alt="Foto" />
+                ) : null}
+                <AvatarFallback>
+                  <Camera className="w-6 h-6 text-muted-foreground" />
+                </AvatarFallback>
+              </Avatar>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoChange}
+                data-testid="input-intermediary-photo"
+              />
+            </div>
+            <div className="flex-1 space-y-1">
+              <p className="text-sm font-medium">Foto do Intermediário</p>
+              <p className="text-xs text-muted-foreground">Clique no avatar para selecionar</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Nome Completo *</Label>
+            <Input
+              placeholder="Nome completo"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              data-testid="input-intermediary-name"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>CPF *</Label>
+              <Input
+                placeholder="000.000.000-00"
+                value={cpf}
+                onChange={(e) => setCpf(formatCpf(e.target.value))}
+                maxLength={14}
+                required
+                data-testid="input-intermediary-cpf"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Data de Nascimento</Label>
+              <Input
+                type="date"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                data-testid="input-intermediary-birthdate"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={isPending} data-testid="button-submit-intermediary">
+              {isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

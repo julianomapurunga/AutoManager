@@ -15,8 +15,11 @@ import Financial from "@/pages/Financial";
 import Fipe from "@/pages/Fipe";
 import Settings from "@/pages/Settings";
 import Profile from "@/pages/Profile";
+import ActivityLog from "@/pages/ActivityLog";
+import PermissionsPage from "@/pages/PermissionsPage";
+import ChangelogPage from "@/pages/ChangelogPage";
+import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
-import RegisterPage from "@/pages/RegisterPage";
 import NotFound from "@/pages/not-found";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -26,6 +29,22 @@ function AdminRoute({ component: Component }: { component: () => JSX.Element }) 
     return <Redirect to="/" />;
   }
   return <Component />;
+}
+
+function PermissionsRoute() {
+  const { user } = useAuth();
+  if (user?.role !== "Administrador" && user?.role !== "Gerente") {
+    return <Redirect to="/" />;
+  }
+  return <PermissionsPage />;
+}
+
+function ChangelogRoute() {
+  const { user } = useAuth();
+  if (user?.role !== "Administrador" && user?.role !== "Gerente") {
+    return <Redirect to="/" />;
+  }
+  return <ChangelogPage />;
 }
 
 function AuthenticatedRouter() {
@@ -46,6 +65,9 @@ function AuthenticatedRouter() {
               <Route path="/fipe" component={Fipe} />
               <Route path="/profile" component={Profile} />
               <Route path="/settings">{() => <AdminRoute component={Settings} />}</Route>
+              <Route path="/activity-log">{() => <AdminRoute component={ActivityLog} />}</Route>
+              <Route path="/permissions" component={PermissionsRoute} />
+              <Route path="/changelog" component={ChangelogRoute} />
               <Route component={NotFound} />
             </Switch>
           </div>
@@ -67,20 +89,20 @@ function LoadingScreen() {
   );
 }
 
-function AuthPages() {
-  const [page, setPage] = useState<"login" | "register">("login");
+function UnauthenticatedPages() {
+  const [page, setPage] = useState<"landing" | "login">("landing");
 
-  if (page === "register") {
-    return <RegisterPage onSwitchToLogin={() => setPage("login")} />;
+  if (page === "login") {
+    return <LoginPage onBackToLanding={() => setPage("landing")} />;
   }
-  return <LoginPage onSwitchToRegister={() => setPage("register")} />;
+  return <LandingPage onGoToLogin={() => setPage("login")} />;
 }
 
 function AppContent() {
   const { user, isLoading } = useAuth();
 
   if (isLoading) return <LoadingScreen />;
-  if (!user) return <AuthPages />;
+  if (!user) return <UnauthenticatedPages />;
   return <AuthenticatedRouter />;
 }
 

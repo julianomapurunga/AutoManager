@@ -114,20 +114,50 @@ export function useDeleteVehicle() {
   });
 }
 
+interface SellData {
+  id: number;
+  salePrice: number;
+  buyerId: number | null;
+  saleDate?: string;
+  saleMileage?: number | null;
+  tradeInVehicle?: {
+    plate: string;
+    brand: string;
+    model: string;
+    color: string;
+    yearFab?: number | null;
+    yearModel?: number | null;
+    condition?: string | null;
+    mileage?: number | null;
+    acquisitionPrice?: number | null;
+    price?: number | null;
+    fipeCode?: string | null;
+    fipePrice?: string | null;
+    ownerId?: number | null;
+    notes?: string | null;
+  } | null;
+  tradeInValue?: number | null;
+  intermediaryId?: number | null;
+  intermediaryCommission?: number | null;
+}
+
 export function useMarkAsSold() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ id, salePrice, buyerId, saleDate }: { id: number; salePrice: number; buyerId: number | null; saleDate?: string }) => {
+    mutationFn: async ({ id, ...data }: SellData) => {
       const url = buildUrl(api.sales.markAsSold.path, { id });
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ salePrice, buyerId, saleDate }),
+        body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to mark vehicle as sold");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Erro ao registrar venda");
+      }
       return res.json();
     },
     onSuccess: (_, variables) => {

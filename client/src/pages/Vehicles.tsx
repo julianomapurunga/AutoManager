@@ -49,7 +49,7 @@ export default function Vehicles() {
                 Novo Veículo
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Cadastrar Novo Veículo</DialogTitle>
               </DialogHeader>

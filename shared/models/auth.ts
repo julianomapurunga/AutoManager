@@ -4,7 +4,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { jsonb } from "drizzle-orm/pg-core";
 
-export const USER_ROLES = ["Administrador", "Vendedor"] as const;
+export const USER_ROLES = ["Administrador", "Gerente", "Vendedor", "Financeiro"] as const;
 export const USER_GENDERS = ["Masculino", "Feminino", "Outro"] as const;
 
 export const sessions = pgTable(

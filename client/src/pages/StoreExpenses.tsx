@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Trash2, Calendar, DollarSign, Search } from "lucide-react";
 import { STORE_EXPENSE_CATEGORIES } from "@shared/schema";
+import { formatCurrencyInput, parseCurrencyToNumber } from "@/components/forms/VehicleForm";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -47,7 +48,7 @@ export default function StoreExpenses() {
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    const amountCents = Math.round(Number(amount) * 100);
+    const amountCents = parseCurrencyToNumber(amount);
     if (amountCents <= 0 || !category) return;
 
     createMutation.mutate({
@@ -116,19 +117,13 @@ export default function StoreExpenses() {
                 </div>
                 <div className="space-y-2">
                   <Label>Valor (R$)</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      className="pl-10"
-                      required
-                      data-testid="input-store-expense-amount"
-                    />
-                  </div>
+                  <Input
+                    placeholder="R$ 0,00"
+                    value={amount}
+                    onChange={(e) => setAmount(formatCurrencyInput(e.target.value))}
+                    required
+                    data-testid="input-store-expense-amount"
+                  />
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
                   <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} data-testid="button-cancel-store-expense">

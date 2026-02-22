@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Car, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Car, Eye, EyeOff, AlertCircle, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,10 +21,10 @@ import {
 type LoginForm = z.infer<typeof loginSchema>;
 
 interface LoginPageProps {
-  onSwitchToRegister: () => void;
+  onBackToLanding?: () => void;
 }
 
-export default function LoginPage({ onSwitchToRegister }: LoginPageProps) {
+export default function LoginPage({ onBackToLanding }: LoginPageProps) {
   const { login, isLoggingIn } = useAuth();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
@@ -57,6 +57,18 @@ export default function LoginPage({ onSwitchToRegister }: LoginPageProps) {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
+        {onBackToLanding && (
+          <Button
+            variant="ghost"
+            onClick={onBackToLanding}
+            className="mb-2"
+            data-testid="button-back-to-landing"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar
+          </Button>
+        )}
+
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2">
             <Car className="w-10 h-10 text-primary" />
@@ -136,17 +148,6 @@ export default function LoginPage({ onSwitchToRegister }: LoginPageProps) {
                 </Button>
               </form>
             </Form>
-
-            <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Não tem uma conta? </span>
-              <button
-                onClick={onSwitchToRegister}
-                className="text-primary font-medium hover:underline"
-                data-testid="link-register"
-              >
-                Cadastre-se
-              </button>
-            </div>
           </CardContent>
         </Card>
       </div>

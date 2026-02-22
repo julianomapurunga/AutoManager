@@ -3,7 +3,7 @@ import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import { authStorage } from "./storage";
-import { registerSchema, loginSchema } from "@shared/models/auth";
+import { loginSchema } from "@shared/models/auth";
 import { z } from "zod";
 
 declare module "express-session" {
@@ -38,43 +38,6 @@ export function getSession() {
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
-
-  app.post("/api/register", async (req, res) => {
-    try {
-      const input = registerSchema.parse(req.body);
-
-      const existingUsername = await authStorage.getUserByUsername(input.username);
-      if (existingUsername) {
-        return res.status(400).json({ message: "Nome de usuário já existe", field: "username" });
-      }
-
-      const existingCpf = await authStorage.getUserByCpf(input.cpf);
-      if (existingCpf) {
-        return res.status(400).json({ message: "CPF já cadastrado", field: "cpf" });
-      }
-
-      const hashedPassword = await bcrypt.hash(input.password, 10);
-
-      const user = await authStorage.createUser({
-        ...input,
-        role: "Vendedor",
-        password: hashedPassword,
-      });
-
-      const { password: _, ...userWithoutPassword } = user;
-      req.session.userId = user.id;
-      res.status(201).json(userWithoutPassword);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({
-          message: err.errors[0].message,
-          field: err.errors[0].path.join("."),
-        });
-      }
-      console.error("Register error:", err);
-      res.status(500).json({ message: "Erro ao criar usuário" });
-    }
-  });
 
   app.post("/api/login", async (req, res) => {
     try {
@@ -130,6 +93,28 @@ export const isAdmin: RequestHandler = async (req, res, next) => {
   const user = await authStorage.getUser(req.session.userId);
   if (!user || user.role !== "Administrador") {
     return res.status(403).json({ message: "Acesso negado. Apenas administradores." });
+  }
+  next();
+};
+
+export const isGerente: RequestHandler = async (req, res, next) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const user = await authStorage.getUser(req.session.userId);
+  if (!user || (user.role !== "Administrador" && user.role !== "Gerente")) {
+    return res.status(403).json({ message: "Acesso negado: Acesso restrito a Gerentes ou Administradores" });
+  }
+  next();
+};
+
+export const isFinanceiro: RequestHandler = async (req, res, next) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const user = await authStorage.getUser(req.session.userId);
+  if (!user || (user.role !== "Administrador" && user.role !== "Gerente" && user.role !== "Financeiro")) {
+    return res.status(403).json({ message: "Acesso negado: Acesso restrito ao setor Financeiro" });
   }
   next();
 };

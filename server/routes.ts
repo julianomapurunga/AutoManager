@@ -4,7 +4,8 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated, isAdmin, isGerente, isFinanceiro } from "./replit_integrations/auth";
+import { STORE_EXPENSE_CATEGORIES } from "@shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -15,8 +16,22 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+const profilesDir = path.join(uploadsDir, "profiles");
+if (!fs.existsSync(profilesDir)) {
+  fs.mkdirSync(profilesDir, { recursive: true });
+}
+
 const multerStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const name = crypto.randomBytes(16).toString("hex");
+    cb(null, `${name}${ext}`);
+  },
+});
+
+const profileStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, profilesDir),
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);
     const name = crypto.randomBytes(16).toString("hex");
@@ -37,6 +52,19 @@ const upload = multer({
   },
 });
 
+const uploadProfile = multer({
+  storage: profileStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = /\.(jpg|jpeg|png|gif|webp)$/i;
+    if (allowed.test(path.extname(file.originalname))) {
+      cb(null, true);
+    } else {
+      cb(new Error("Apenas imagens são permitidas (jpg, png, gif, webp)"));
+    }
+  },
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -45,8 +73,13 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
 
-  // === PEOPLE ROUTES ===
-  app.get(api.people.list.path, isAuthenticated, async (req, res) => {
+  // Audit log route
+  app.get("/api/audit-logs", isAdmin, async (req, res) => {
+    const logs = await storage.getAuditLogs();
+    res.json(logs);
+  });
+
+  app.get(api.people.list.path, isFinanceiro, async (req, res) => {
     const type = req.query.type as string | undefined;
     const people = await storage.getPeople(type);
     res.json(people);
@@ -67,7 +100,7 @@ export async function registerRoutes(
     res.json(person);
   });
 
-  app.post(api.people.create.path, isAuthenticated, async (req, res) => {
+  app.post(api.people.create.path, isGerente, async (req, res) => {
     try {
       const input = api.people.create.input.parse(req.body);
       const person = await storage.createPerson(input);
@@ -83,7 +116,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put(api.people.update.path, isAuthenticated, async (req, res) => {
+  app.put(api.people.update.path, isGerente, async (req, res) => {
     try {
       const input = api.people.update.input.parse(req.body);
       const updated = await storage.updatePerson(Number(req.params.id), input);
@@ -99,12 +132,11 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.people.delete.path, isAuthenticated, async (req, res) => {
+  app.delete(api.people.delete.path, isAdmin, async (req, res) => {
     await storage.deletePerson(Number(req.params.id));
     res.status(204).end();
   });
 
-  // === VEHICLE ROUTES ===
   app.get(api.vehicles.list.path, isAuthenticated, async (req, res) => {
     const filters = {
       status: req.query.status as string | undefined,
@@ -121,7 +153,7 @@ export async function registerRoutes(
     res.json(vehicle);
   });
 
-  app.post(api.vehicles.create.path, isAuthenticated, async (req, res) => {
+  app.post(api.vehicles.create.path, isGerente, async (req, res) => {
     try {
       const input = api.vehicles.create.input.parse(req.body);
 
@@ -143,7 +175,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put(api.vehicles.update.path, isAuthenticated, async (req, res) => {
+  app.put(api.vehicles.update.path, isGerente, async (req, res) => {
     try {
       const input = api.vehicles.update.input.parse(req.body);
       if (input.status === "Vendido") {
@@ -165,18 +197,17 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.vehicles.delete.path, isAuthenticated, async (req, res) => {
+  app.delete(api.vehicles.delete.path, isAdmin, async (req, res) => {
     await storage.deleteVehicle(Number(req.params.id));
     res.status(204).end();
   });
 
-  // === EXPENSE ROUTES ===
   app.get(api.expenses.listByVehicle.path, isAuthenticated, async (req, res) => {
     const expenses = await storage.getExpensesByVehicle(Number(req.params.vehicleId));
     res.json(expenses);
   });
 
-  app.post(api.expenses.create.path, isAuthenticated, async (req, res) => {
+  app.post(api.expenses.create.path, isFinanceiro, async (req, res) => {
     try {
       const input = api.expenses.create.input.parse(req.body);
       const expense = await storage.createExpense(input);
@@ -192,23 +223,52 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.expenses.delete.path, isAuthenticated, async (req, res) => {
+  app.delete(api.expenses.delete.path, isAdmin, async (req, res) => {
     await storage.deleteExpense(Number(req.params.id));
     res.status(204).end();
   });
 
-  // === MARK AS SOLD ===
   app.post("/api/vehicles/:id/sell", isAuthenticated, async (req, res) => {
     try {
       const input = api.sales.markAsSold.input.parse(req.body);
       const vehicle = await storage.getVehicle(Number(req.params.id));
       if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
-      
+
+      let tradeInVehicleId: number | null = null;
+      if (input.tradeInVehicle) {
+        const tv = input.tradeInVehicle;
+        const tradeIn = await storage.createVehicle({
+          plate: tv.plate,
+          brand: tv.brand as any,
+          model: tv.model,
+          color: tv.color,
+          yearFab: tv.yearFab ?? null,
+          yearModel: tv.yearModel ?? null,
+          condition: tv.condition as any ?? null,
+          mileage: tv.mileage ?? null,
+          acquisitionPrice: tv.acquisitionPrice ?? null,
+          price: tv.price ?? null,
+          fipeCode: tv.fipeCode ?? null,
+          fipePrice: tv.fipePrice ?? null,
+          ownerId: tv.ownerId ?? null,
+          notes: tv.notes ?? null,
+          status: "Aguardando Preparação",
+        });
+        tradeInVehicleId = tradeIn.id;
+      }
+
       const updated = await storage.markVehicleAsSold(
         Number(req.params.id),
-        input.salePrice,
-        input.buyerId ?? null,
-        input.saleDate ? new Date(input.saleDate) : new Date()
+        {
+          salePrice: input.salePrice,
+          buyerId: input.buyerId ?? null,
+          saleDate: input.saleDate ? new Date(input.saleDate) : new Date(),
+          saleMileage: input.saleMileage ?? null,
+          tradeInVehicleId,
+          tradeInValue: input.tradeInValue ?? null,
+          intermediaryId: input.intermediaryId ?? null,
+          intermediaryCommission: input.intermediaryCommission ?? null,
+        }
       );
       res.json(updated);
     } catch (err) {
@@ -222,13 +282,12 @@ export async function registerRoutes(
     }
   });
 
-  // === STORE EXPENSE ROUTES ===
-  app.get(api.storeExpenses.list.path, isAuthenticated, async (req, res) => {
+  app.get(api.storeExpenses.list.path, isFinanceiro, async (req, res) => {
     const storeExpenses = await storage.getStoreExpenses();
     res.json(storeExpenses);
   });
 
-  app.post(api.storeExpenses.create.path, isAuthenticated, async (req, res) => {
+  app.post(api.storeExpenses.create.path, isFinanceiro, async (req, res) => {
     try {
       const input = api.storeExpenses.create.input.parse(req.body);
       const expense = await storage.createStoreExpense(input);
@@ -244,12 +303,11 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.storeExpenses.delete.path, isAuthenticated, async (req, res) => {
+  app.delete(api.storeExpenses.delete.path, isAdmin, async (req, res) => {
     await storage.deleteStoreExpense(Number(req.params.id));
     res.status(204).end();
   });
 
-  // === VEHICLE IMAGES ROUTES ===
   app.get("/uploads/profiles/:filename", isAuthenticated, (req, res) => {
     const filename = path.basename(String(req.params.filename));
     const filePath = path.join(uploadsDir, "profiles", filename);
@@ -269,7 +327,7 @@ export async function registerRoutes(
     res.json(images);
   });
 
-  app.post("/api/vehicles/:vehicleId/images", isAuthenticated, upload.array("images", 20), async (req, res) => {
+  app.post("/api/vehicles/:vehicleId/images", isGerente, upload.array("images", 20), async (req, res) => {
     try {
       const vehicleId = Number(req.params.vehicleId);
       const vehicle = await storage.getVehicle(vehicleId);
@@ -295,7 +353,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/vehicle-images/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/vehicle-images/:id", isAdmin, async (req, res) => {
     const deleted = await storage.deleteVehicleImage(Number(req.params.id));
     if (deleted?.filePath) {
       const filename = path.basename(deleted.filePath);
@@ -305,7 +363,7 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
-  app.delete("/api/vehicles/:vehicleId/images", isAuthenticated, async (req, res) => {
+  app.delete("/api/vehicles/:vehicleId/images", isAdmin, async (req, res) => {
     const deleted = await storage.deleteAllVehicleImages(Number(req.params.vehicleId));
     for (const img of deleted) {
       if (img.filePath) {
@@ -317,14 +375,64 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
-  // === DASHBOARD ROUTES ===
-  app.get(api.dashboard.get.path, isAuthenticated, async (req, res) => {
+  app.get(api.intermediaries.list.path, isAuthenticated, async (_req, res) => {
+    const list = await storage.getIntermediaries();
+    res.json(list);
+  });
+
+  app.get(api.intermediaries.get.path, isAuthenticated, async (req, res) => {
+    const item = await storage.getIntermediary(Number(req.params.id));
+    if (!item) return res.status(404).json({ message: "Intermediário não encontrado" });
+    res.json(item);
+  });
+
+  app.post(api.intermediaries.create.path, isGerente, uploadProfile.single("photo"), async (req, res) => {
+    try {
+      const data: any = {
+        name: req.body.name,
+        cpf: req.body.cpf,
+        birthDate: req.body.birthDate ? new Date(req.body.birthDate) : null,
+        photoUrl: null,
+      };
+      if (req.file) {
+        data.photoUrl = `/uploads/profiles/${req.file.filename}`;
+      }
+      const item = await storage.createIntermediary(data);
+      res.status(201).json(item);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put(api.intermediaries.update.path, isGerente, uploadProfile.single("photo"), async (req, res) => {
+    try {
+      const data: any = {};
+      if (req.body.name) data.name = req.body.name;
+      if (req.body.cpf) data.cpf = req.body.cpf;
+      if (req.body.birthDate) data.birthDate = new Date(req.body.birthDate);
+      if (req.file) {
+        data.photoUrl = `/uploads/profiles/${req.file.filename}`;
+      }
+      const item = await storage.updateIntermediary(Number(req.params.id), data);
+      res.json(item);
+    } catch (err) {
+      return res.status(404).json({ message: "Intermediário não encontrado" });
+    }
+  });
+
+  app.delete(api.intermediaries.delete.path, isAdmin, async (req, res) => {
+    await storage.deleteIntermediary(Number(req.params.id));
+    res.status(204).end();
+  });
+
+  app.get("/api/dashboard/stats", isFinanceiro, async (req, res) => {
     const stats = await storage.getDashboardStats();
     res.json(stats);
   });
 
-  // === SEED DATA ===
-  // === FIPE API PROXY ===
   const FIPE_BASE = "https://fipe.parallelum.com.br/api/v2";
   const VALID_VEHICLE_TYPES = ["cars", "motorcycles", "trucks"];
 
@@ -444,9 +552,9 @@ async function seedDatabase() {
       return parseInt(digits, 10) || 0;
     };
 
-    const colors = ["Branco", "Prata", "Preto", "Cinza", "Vermelho", "Azul", "Branco Pérola", "Grafite"];
     const statuses: Array<"Disponível" | "Aguardando Preparação" | "Em Manutenção" | "Reservado"> = ["Disponível", "Disponível", "Disponível", "Aguardando Preparação", "Em Manutenção", "Reservado"];
     const owners = [owner1, owner2, owner3, null];
+    const conditions: Array<"Novo" | "Semi-novo" | "Usado"> = ["Semi-novo", "Usado", "Novo"];
 
     const fipeVehicles = [
       { plate: "BRA2E19", brand: "Fiat" as const, model: "ARGO 1.0 6V Flex", yearFab: 2025, yearModel: 2026, fipeCode: "001509-1", fipePrice: "R$ 76.785,00", color: "Branco", notes: "Carro seminovo, revisões em dia" },
@@ -458,7 +566,7 @@ async function seedDatabase() {
       { plate: "POA8G12", brand: "Chevrolet" as const, model: "ONIX Lollapalooza 1.0 F.Power 5p Mec.", yearFab: 2013, yearModel: 2014, fipeCode: "004451-2", fipePrice: "R$ 43.498,00", color: "Azul", notes: "Edição especial Lollapalooza" },
       { plate: "REC2J34", brand: "Chevrolet" as const, model: "TRACKER 1.0 Turbo 12V Flex Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "004526-8", fipePrice: "R$ 114.659,00", color: "Branco Pérola", notes: "SUV turbo automático, zero bala" },
       { plate: "FOR6L78", brand: "Chevrolet" as const, model: "S10 Blazer DTi 2.8 4x2 Turbo Diesel", yearFab: 2001, yearModel: 2002, fipeCode: "004226-9", fipePrice: "R$ 49.400,00", color: "Prata", notes: "SUV diesel, bom para estrada" },
-      { plate: "MAN9N01", brand: "Chevrolet" as const, model: "SPIN 1.8 8V Econo.Flex 5p Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "004564-0", fipePrice: "R$ 105.285,00", color: "Cinza", notes: "Minivan 7 lugares, automático" },
+      { plate: "BHZ3F46", brand: "Chevrolet" as const, model: "SPIN 1.8 8V Econo.Flex 5p Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "004564-0", fipePrice: "R$ 105.285,00", color: "Cinza", notes: "Minivan 7 lugares, automático" },
       { plate: "VIT4P23", brand: "Volkswagen" as const, model: "T-Cross 1.0 TSI Flex 12V 5p Mec.", yearFab: 2020, yearModel: 2021, fipeCode: "005511-5", fipePrice: "R$ 91.804,00", color: "Branco", notes: "SUV compacto, câmbio manual" },
       { plate: "NAT7R45", brand: "Volkswagen" as const, model: "VIRTUS 1.6 MSI Flex 16V 4p Aut.", yearFab: 2021, yearModel: 2022, fipeCode: "005500-0", fipePrice: "R$ 84.563,00", color: "Prata", notes: "Sedan automático, completo" },
       { plate: "GOI1T67", brand: "Volkswagen" as const, model: "Saveiro Xtreme 1.6", yearFab: 2002, yearModel: 2003, fipeCode: "005168-3", fipePrice: "R$ 24.700,00", color: "Vermelho", notes: "Pick-up compacta, bom estado" },
@@ -467,45 +575,48 @@ async function seedDatabase() {
       { plate: "JPA8Z23", brand: "Honda" as const, model: "HR-V Advance 1.5 Flex TB 16V 5p Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "014111-9", fipePrice: "R$ 185.886,00", color: "Preto", notes: "SUV turbo, top de linha" },
       { plate: "SLV2B45", brand: "Honda" as const, model: "CITY Hatchback EX 1.5 Flex 16V Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "014115-1", fipePrice: "R$ 129.728,00", color: "Azul", notes: "Hatch automático, completo" },
       { plate: "MAC6D67", brand: "Hyundai" as const, model: "HB20 1.0 Comfort Plus", yearFab: 2023, yearModel: 2024, fipeCode: "015142-4", fipePrice: "R$ 72.500,00", color: "Branco", notes: "Hatch popular, econômico" },
-      { plate: "AJU9F89", brand: "Jeep" as const, model: "Renegade 1.8 Flex Aut.", yearFab: 2022, yearModel: 2023, fipeCode: "037006-0", fipePrice: "R$ 98.500,00", color: "Preto", notes: "SUV 4x2, automático" },
-      { plate: "TER3H01", brand: "Jeep" as const, model: "Compass 2.0 16V Flex Aut.", yearFab: 2023, yearModel: 2024, fipeCode: "037013-2", fipePrice: "R$ 155.000,00", color: "Grafite", notes: "SUV médio, top da categoria" },
+      { plate: "THE1F23", brand: "Hyundai" as const, model: "CRETA Limited 1.0 Turbo Flex Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "015197-1", fipePrice: "R$ 152.688,00", color: "Prata", notes: "SUV turbo moderno e tecnológico" },
+      { plate: "SJC4G56", brand: "Renault" as const, model: "KWID Outsider 1.0 Flex 12V 5p", yearFab: 2023, yearModel: 2024, fipeCode: "012061-8", fipePrice: "R$ 54.321,00", color: "Branco", notes: "Hatch compacto aventureiro" },
+      { plate: "UBL7H89", brand: "Nissan" as const, model: "KICKS Exclusive 1.6 16V Flex Aut.", yearFab: 2025, yearModel: 2026, fipeCode: "023180-0", fipePrice: "R$ 152.000,00", color: "Vermelho com teto preto", notes: "SUV completo com som premium" },
+      { plate: "CGR2J34", brand: "Jeep" as const, model: "Compass Longitude 1.3 Turbo 270 Flex Aut", yearFab: 2025, yearModel: 2026, fipeCode: "001648-9", fipePrice: "R$ 194.500,00", color: "Azul Jazz", notes: "SUV médio premium potente" }
     ];
 
-    for (let i = 0; i < fipeVehicles.length; i++) {
-      const v = fipeVehicles[i];
-      const fipeCents = parseFipePrice(v.fipePrice);
-      const priceVariation = 0.9 + Math.random() * 0.2;
-      const askingPrice = Math.round(fipeCents * priceVariation);
-      const owner = owners[i % owners.length];
-      const status = statuses[i % statuses.length];
+    for (const fv of fipeVehicles) {
+      const idx = Math.floor(Math.random() * statuses.length);
+      const ownerIdx = Math.floor(Math.random() * owners.length);
+      const condIdx = Math.floor(Math.random() * conditions.length);
+      
+      const fipePriceNum = parseFipePrice(fv.fipePrice);
+      const price = Math.round(fipePriceNum * 1.05); // 5% above FIPE
+      const acquisitionPrice = Math.round(fipePriceNum * 0.85); // 15% below FIPE
 
-      const vehicle = await storage.createVehicle({
-        plate: v.plate,
-        brand: v.brand,
-        model: v.model,
-        color: v.color,
-        yearFab: v.yearFab,
-        yearModel: v.yearModel,
-        price: askingPrice,
-        status: status,
-        ownerId: owner?.id || null,
-        notes: v.notes,
-        fipeCode: v.fipeCode,
-        fipePrice: v.fipePrice,
+      await storage.createVehicle({
+        plate: fv.plate,
+        brand: fv.brand,
+        model: fv.model,
+        color: fv.color,
+        yearFab: fv.yearFab,
+        yearModel: fv.yearModel,
+        condition: conditions[condIdx],
+        mileage: Math.floor(Math.random() * 80000),
+        acquisitionPrice,
+        price,
+        fipeCode: fv.fipeCode,
+        fipePrice: fv.fipePrice,
+        status: statuses[idx],
+        ownerId: owners[ownerIdx]?.id || null,
+        notes: fv.notes,
       });
+    }
 
-      if (i < 5) {
-        await storage.createExpense({
-          vehicleId: vehicle.id,
-          description: "Lavagem completa",
-          amount: 15000
-        });
-        await storage.createExpense({
-          vehicleId: vehicle.id,
-          description: "Polimento e espelhamento",
-          amount: 45000
-        });
-      }
+    // Seed store expenses
+    const expCategories: typeof STORE_EXPENSE_CATEGORIES[number][] = ["Aluguel", "Internet", "Água", "Energia", "Salários"];
+    for (const cat of expCategories) {
+      await storage.createStoreExpense({
+        description: `Pagamento ${cat} - Mês Corrente`,
+        category: cat,
+        amount: Math.floor(Math.random() * 500000) + 50000,
+      });
     }
   }
 }

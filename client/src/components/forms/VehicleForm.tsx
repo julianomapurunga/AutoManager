@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertVehicleSchema, VEHICLE_STATUS, VEHICLE_BRANDS } from "@shared/schema";
+import { insertVehicleSchema, VEHICLE_STATUS, VEHICLE_BRANDS, VEHICLE_CONDITIONS } from "@shared/schema";
 import type { Person } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,33 +23,24 @@ import { CpfPersonLookup } from "./CpfPersonLookup";
 import { Search, Check, ChevronDown, ChevronUp } from "lucide-react";
 
 const formSchema = insertVehicleSchema.extend({
+  acquisitionPrice: z.string().optional(),
   price: z.string().optional(),
   yearFab: z.coerce.number().min(1900).max(2100).optional().nullable(),
   yearModel: z.coerce.number().min(1900).max(2100).optional().nullable(),
+  mileage: z.coerce.number().min(0).optional().nullable(),
   ownerId: z.coerce.number().nullable().optional(),
   fipeCode: z.string().nullable().optional(),
   fipePrice: z.string().nullable().optional(),
+  condition: z.string().nullable().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 type VehicleType = "cars" | "motorcycles" | "trucks";
 
-interface FipeBrand {
-  code: string;
-  name: string;
-}
-
-interface FipeModel {
-  code: string;
-  name: string;
-}
-
-interface FipeYear {
-  code: string;
-  name: string;
-}
-
+interface FipeBrand { code: string; name: string; }
+interface FipeModel { code: string; name: string; }
+interface FipeYear { code: string; name: string; }
 interface FipeResult {
   brand: string;
   codeFipe: string;
@@ -60,7 +51,7 @@ interface FipeResult {
   referenceMonth: string;
 }
 
-function formatCurrencyInput(value: string): string {
+export function formatCurrencyInput(value: string): string {
   const digits = value.replace(/\D/g, "");
   if (!digits) return "";
   const cents = parseInt(digits, 10);
@@ -70,17 +61,33 @@ function formatCurrencyInput(value: string): string {
   return `R$ ${formatted},${decPart}`;
 }
 
-function parseCurrencyToNumber(value: string): number {
+export function parseCurrencyToNumber(value: string): number {
   const digits = value.replace(/\D/g, "");
   return parseInt(digits, 10) || 0;
 }
 
-function centsToFormattedCurrency(cents: number): string {
+export function centsToFormattedCurrency(cents: number): string {
   if (!cents) return "";
   const reais = (cents / 100).toFixed(2);
   const [intPart, decPart] = reais.split(".");
   const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return `R$ ${formatted},${decPart}`;
+}
+
+export function formatMileageInput(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+export function parseMileageToNumber(value: string): number {
+  const digits = value.replace(/\D/g, "");
+  return parseInt(digits, 10) || 0;
+}
+
+export function numberToFormattedMileage(num: number | null | undefined): string {
+  if (!num) return "";
+  return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 const FIPE_BRAND_TO_SYSTEM: Record<string, string> = {
@@ -109,7 +116,7 @@ function matchFipeBrandToSystem(fipeBrandName: string): string {
 }
 
 interface VehicleFormProps {
-  defaultValues?: Partial<FormData & { price: any }>;
+  defaultValues?: Partial<FormData & { price: any; acquisitionPrice: any }>;
   defaultOwner?: Person | null;
   onSubmit: (data: any) => void;
   isPending: boolean;
@@ -119,9 +126,19 @@ interface VehicleFormProps {
 
 export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, onCancel, isEdit = false }: VehicleFormProps) {
   const [selectedOwner, setSelectedOwner] = useState<Person | null>(defaultOwner || null);
+  const [acquisitionDisplay, setAcquisitionDisplay] = useState(() => {
+    const p = defaultValues?.acquisitionPrice;
+    if (typeof p === "number" && p > 0) return centsToFormattedCurrency(p);
+    return "";
+  });
   const [priceDisplay, setPriceDisplay] = useState(() => {
     const p = defaultValues?.price;
     if (typeof p === "number" && p > 0) return centsToFormattedCurrency(p);
+    return "";
+  });
+  const [mileageDisplay, setMileageDisplay] = useState(() => {
+    const m = defaultValues?.mileage;
+    if (m != null && Number(m) > 0) return numberToFormattedMileage(Number(m));
     return "";
   });
 
@@ -162,24 +179,43 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
       status: "Aguardando Preparação",
       brand: "Toyota",
       notes: "",
+      condition: null,
+      mileage: null,
       ...defaultValues,
+      acquisitionPrice: defaultValues?.acquisitionPrice ? String(defaultValues.acquisitionPrice) : "",
       price: defaultValues?.price ? String(defaultValues.price) : "",
       ownerId: defaultValues?.ownerId || null,
     },
   });
 
+  const handleAcquisitionPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCurrencyInput(e.target.value);
+    setAcquisitionDisplay(formatted);
+    form.setValue("acquisitionPrice", String(parseCurrencyToNumber(e.target.value)));
+  };
+
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    const formatted = formatCurrencyInput(raw);
+    const formatted = formatCurrencyInput(e.target.value);
     setPriceDisplay(formatted);
-    form.setValue("price", String(parseCurrencyToNumber(raw)));
+    form.setValue("price", String(parseCurrencyToNumber(e.target.value)));
+  };
+
+  const handleMileageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatMileageInput(e.target.value);
+    setMileageDisplay(formatted);
+    form.setValue("mileage", parseMileageToNumber(e.target.value) as any);
   };
 
   const handleSubmit = (data: FormData) => {
-    const priceInCents = parseCurrencyToNumber(priceDisplay);
+    const acquisitionPriceCents = parseCurrencyToNumber(acquisitionDisplay);
+    const priceCents = parseCurrencyToNumber(priceDisplay);
+    const mileageNum = parseMileageToNumber(mileageDisplay);
     onSubmit({
       ...data,
-      price: priceInCents,
+      acquisitionPrice: acquisitionPriceCents || null,
+      price: priceCents || null,
+      mileage: mileageNum || null,
+      condition: data.condition || null,
       ownerId: selectedOwner?.id || null,
     });
   };
@@ -349,7 +385,7 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
           )}
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormField
             control={form.control}
             name="plate"
@@ -417,6 +453,48 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
 
           <FormField
             control={form.control}
+            name="condition"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Condição</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                  <FormControl>
+                    <SelectTrigger data-testid="select-condition">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {VEHICLE_CONDITIONS.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="mileage"
+            render={() => (
+              <FormItem>
+                <FormLabel>Quilometragem (km)</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Ex: 45.000"
+                    value={mileageDisplay}
+                    onChange={handleMileageChange}
+                    data-testid="input-mileage"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="yearFab"
             render={({ field }) => (
               <FormItem>
@@ -445,10 +523,29 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
 
           <FormField
             control={form.control}
+            name="acquisitionPrice"
+            render={() => (
+              <FormItem>
+                <FormLabel>Preço de Aquisição (R$)</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="R$ 0,00"
+                    value={acquisitionDisplay}
+                    onChange={handleAcquisitionPriceChange}
+                    data-testid="input-acquisition-price"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="price"
             render={() => (
               <FormItem>
-                <FormLabel>Preço (R$)</FormLabel>
+                <FormLabel>Preço Anunciado (R$)</FormLabel>
                 <FormControl>
                   <Input
                     placeholder="R$ 0,00"
