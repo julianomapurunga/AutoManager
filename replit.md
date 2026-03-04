@@ -148,3 +148,75 @@ All monetary values stored in cents (integer). Divide by 100 for display, format
 ## User Preferences
 - Language: Portuguese (pt-BR)
 - Currency: BRL (R$)
+
+## Fluxo de Release e Versão
+
+### Script de versão e changelog
+
+- O controle de versão da aplicação fica em `shared/version.ts`, com:
+  - `APP_VERSION`: versão atual exibida no sidebar e na landing page.
+  - `CHANGELOG`: array com o histórico de versões, datas e mudanças.
+- Para atualizar esses valores de forma automática existe o script:
+  - `scripts/bumpVersion.ts` (TypeScript), exposto via:
+    - `npm run release`
+
+### Como criar uma nova versão
+
+1. Certifique-se de que o código está atualizado:
+   - `git pull`
+2. Rode o script de release em **modo normal** (não dry-run), informando:
+   - nova versão (`MAJOR.MINOR.PATCH`),
+   - título curto do release,
+   - arquivo de notas com bullets das mudanças (opcional, mas recomendado).
+
+   Exemplo:
+
+   ```bash
+   npm run release -- 1.1.0 "Melhorias em FIPE e Dashboard" notas-1.1.0.md
+   ```
+
+   - O script irá:
+     - atualizar `APP_VERSION` para `1.1.0`;
+     - inserir um novo objeto no topo do array `CHANGELOG` com:
+       - `version`, `date` (data atual), `title`, `changes` (linhas do arquivo de notas).
+
+3. Revise o arquivo `shared/version.ts`:
+   - Confira se a `APP_VERSION` está correta.
+   - Confira se a nova entrada do `CHANGELOG` está formatada como esperado.
+4. Faça o commit das alterações de versão:
+
+   ```bash
+   git add shared/version.ts
+   git commit -m "chore: bump versão para 1.1.0"
+   ```
+
+5. Crie uma tag Git correspondente (opcional, mas recomendado):
+
+   ```bash
+   git tag v1.1.0
+   git push origin main --tags
+   ```
+
+### Modo dry-run (pré-visualização)
+
+- Para testar o script **sem gravar** alterações em disco, use a flag `--dry-run`:
+
+  ```bash
+  npm run release -- 1.1.0 "Teste de Release" notas-1.1.0.md --dry-run
+  ```
+
+- O script vai mostrar no console:
+  - a nova linha de `APP_VERSION`;
+  - o início do bloco `CHANGELOG` com a nova entrada;
+  - e não irá salvar nada no arquivo.
+
+### Integração com Git (fluxo sugerido)
+
+- Fluxo recomendado (pré-tag):
+  1. Rodar `npm run release` para atualizar `shared/version.ts`.
+  2. Comitar as alterações de versão.
+  3. Criar a tag Git `vX.Y.Z` a partir desse commit.
+- Opcionalmente, você pode criar um hook de Git local (por exemplo, `pre-push` ou `pre-tag`) que:
+  - verifica se `APP_VERSION` em `shared/version.ts` bate com a versão da tag que está sendo criada;
+  - aborta o push/tag se estiver inconsistente.
+

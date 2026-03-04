@@ -33,6 +33,12 @@ const features = [
     description: "Visualize estatísticas do estoque, veículos disponíveis, vendidos e o resumo financeiro completo.",
   },
   {
+    icon: DollarSign,
+    title: "Vendas e Lucro por Veículo",
+    description:
+      "Registre vendas com comprador, veículo de troca e comissão de intermediário, acompanhando automaticamente o lucro líquido por veículo.",
+  },
+  {
     icon: Shield,
     title: "Segurança e Auditoria",
     description: "Rastreabilidade total com log de atividades detalhado. Matriz de permissões clara para Administradores, Gerentes, Vendedores e Financeiro.",
@@ -45,17 +51,23 @@ const features = [
 ];
 
 const highlights = [
-  "Cadastro completo de veículos com fotos",
-  "Preço de aquisição e preço anunciado separados",
-  "Controle de veículos de troca",
-  "Comissão de intermediários",
-  "Relatórios financeiros detalhados",
-  "Consulta automática Tabela FIPE",
-  "Histórico de preços FIPE dos últimos 5 anos",
-  "Despesas por veículo e da loja",
-  "Gestão de usuários com permissões",
-  "Log de auditoria completo para administradores",
-  "Matriz de acesso por cargo (Gerente, Vendedor, Financeiro)",
+  "Cadastro completo de veículos com fotos e galeria de imagens.",
+  "Status do veículo: Disponível, Vendido, Em Manutenção, Aguardando Preparação e Reservado.",
+  "Preço de aquisição (interno) e preço anunciado (público) separados.",
+  "Fluxo de venda com comprador, veículo de troca e comissão do intermediário.",
+  "Resumo de lucro por veículo considerando despesas e comissões.",
+  "Controle de veículos de troca integrado ao estoque.",
+  "Controle de despesas por veículo e despesas operacionais da loja.",
+  "Relatório financeiro mensal com receitas, custos e lucro líquido.",
+  "Dashboard com visão geral de estoque, faturamento e despesas.",
+  "Integração com a Tabela FIPE, com histórico de preços dos últimos 5 anos.",
+  "Preenchimento automático de dados do veículo via FIPE.",
+  "Gestão de usuários com perfis Administrador, Gerente, Vendedor e Financeiro.",
+  "Matriz de permissões por módulo e página dedicada de permissões.",
+  "Log de atividades e auditoria completa com rastreabilidade por usuário.",
+  "Página de perfil de usuário com foto e edição de dados pessoais.",
+  "Changelog com histórico de versões e melhorias do sistema.",
+  "Sistema de login seguro com sessões criptografadas.",
 ];
 
 export default function LandingPage({ onGoToLogin }: LandingPageProps) {

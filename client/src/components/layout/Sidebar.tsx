@@ -1,5 +1,22 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Car, Users, LogOut, Menu, X, BarChart3, Receipt, Settings, Search, UserCog, History, Shield, FileText } from "lucide-react";
+import {
+  LayoutDashboard,
+  Car,
+  Users,
+  LogOut,
+  Menu,
+  X,
+  BarChart3,
+  Receipt,
+  Settings,
+  Search,
+  UserCog,
+  History,
+  Shield,
+  FileText,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,15 +32,19 @@ const items = [
   { href: "/store-expenses", icon: Receipt, label: "Despesas da Loja", adminOnly: false },
   { href: "/financial", icon: BarChart3, label: "Financeiro", adminOnly: false },
   { href: "/fipe", icon: Search, label: "FIPE", adminOnly: false },
-  { href: "/permissions", icon: Shield, label: "Permissões", roles: ["Administrador", "Gerente"] },
-  { href: "/changelog", icon: FileText, label: "Changelog", roles: ["Administrador", "Gerente"] },
-  { href: "/activity-log", icon: History, label: "Log de Atividades", adminOnly: true },
   { href: "/settings", icon: Settings, label: "Configurações", adminOnly: true },
+];
+
+const settingsSubItems = [
+  { href: "/permissions", icon: Shield, label: "Permissões", roles: ["Administrador", "Gerente"] as const },
+  { href: "/changelog", icon: FileText, label: "Changelog", roles: ["Administrador", "Gerente"] as const },
+  { href: "/activity-log", icon: History, label: "Log de Atividades", roles: ["Administrador"] as const },
 ];
 
 export function Sidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
   const getInitials = (first?: string | null, last?: string | null) => {
     const f = first?.charAt(0) || "";
@@ -49,6 +70,80 @@ export function Sidebar() {
           })
           .map((item) => {
             const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+            const isSettingsItem = item.label === "Configurações";
+
+            if (isSettingsItem) {
+              const settingsSectionActive =
+                location.startsWith("/settings") ||
+                location.startsWith("/permissions") ||
+                location.startsWith("/changelog") ||
+                location.startsWith("/activity-log");
+
+              return (
+                <div key={item.href} className="space-y-1">
+                  <Link href={item.href}>
+                    <div
+                      data-testid={`nav-${item.label.toLowerCase()}`}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-3 rounded-md font-medium transition-all duration-200 cursor-pointer",
+                        settingsSectionActive || isActive
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover-elevate"
+                      )}
+                      onClick={() => setShowSettingsMenu((prev) => !prev)}
+                    >
+                      <item.icon
+                        className={cn(
+                          "w-5 h-5",
+                          settingsSectionActive || isActive ? "text-primary" : "text-muted-foreground"
+                        )}
+                      />
+                      {item.label}
+                      <span className="ml-auto">
+                        {showSettingsMenu ? (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </span>
+                    </div>
+                  </Link>
+
+                  {showSettingsMenu && (
+                    <div className="ml-8 space-y-1">
+                      {settingsSubItems
+                        .filter((sub) => sub.roles.includes(user?.role || "" as any))
+                        .map((sub) => {
+                          const isSubActive =
+                            location === sub.href || (sub.href !== "/" && location.startsWith(sub.href));
+                          return (
+                            <Link key={sub.href} href={sub.href}>
+                              <div
+                                data-testid={`nav-${sub.label.toLowerCase()}`}
+                                className={cn(
+                                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer",
+                                  isSubActive
+                                    ? "bg-primary/10 text-primary"
+                                    : "text-muted-foreground hover:bg-muted/60"
+                                )}
+                              >
+                                <sub.icon
+                                  className={cn(
+                                    "w-4 h-4",
+                                    isSubActive ? "text-primary" : "text-muted-foreground"
+                                  )}
+                                />
+                                {sub.label}
+                              </div>
+                            </Link>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <Link key={item.href} href={item.href}>
                 <div
@@ -109,6 +204,7 @@ export function Sidebar() {
 
 export function MobileHeader() {
   const [open, setOpen] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [location] = useLocation();
   const { user, logout } = useAuth();
 
@@ -134,6 +230,72 @@ export function MobileHeader() {
             })
             .map((item) => {
               const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+              const isSettingsItem = item.label === "Configurações";
+
+              if (isSettingsItem) {
+                const settingsSectionActive =
+                  location.startsWith("/settings") ||
+                  location.startsWith("/permissions") ||
+                  location.startsWith("/changelog") ||
+                  location.startsWith("/activity-log");
+
+                return (
+                  <div key={item.href} className="space-y-1">
+                    <Link href={item.href}>
+                      <div
+                        onClick={() => {
+                          setShowSettingsMenu((prev) => !prev);
+                          setOpen(false);
+                        }}
+                        className={cn(
+                          "flex items-center gap-3 px-4 py-3 rounded-md font-medium cursor-pointer",
+                          settingsSectionActive || isActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        <item.icon className="w-5 h-5" />
+                        {item.label}
+                        <span className="ml-auto">
+                          {showSettingsMenu ? (
+                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                          )}
+                        </span>
+                      </div>
+                    </Link>
+
+                    {showSettingsMenu && (
+                      <div className="ml-8 space-y-1">
+                        {settingsSubItems
+                          .filter((sub) => sub.roles.includes(user?.role || "" as any))
+                          .map((sub) => {
+                            const isSubActive =
+                              location === sub.href || (sub.href !== "/" && location.startsWith(sub.href));
+                            return (
+                              <Link key={sub.href} href={sub.href}>
+                                <div
+                                  onClick={() => setOpen(false)}
+                                  className={cn(
+                                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium cursor-pointer",
+                                    isSubActive
+                                      ? "bg-primary/10 text-primary"
+                                      : "text-muted-foreground"
+                                  )}
+                                >
+                                  <sub.icon className="w-4 h-4" />
+                                  {sub.label}
+                                </div>
+                              </Link>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <Link key={item.href} href={item.href}>
                   <div
@@ -152,13 +314,13 @@ export function MobileHeader() {
               );
             })}
           <Link href="/profile">
-            <div
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 rounded-md font-medium cursor-pointer text-muted-foreground"
-            >
-              <UserCog className="w-5 h-5" />
-              Meu Perfil
-            </div>
+                  <div
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-md font-medium cursor-pointer text-muted-foreground"
+                  >
+                    <UserCog className="w-5 h-5" />
+                    Meu Perfil
+                  </div>
           </Link>
           <div
             onClick={() => logout()}
