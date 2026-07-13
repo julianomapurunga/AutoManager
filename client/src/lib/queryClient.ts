@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { getAccessToken } from "./supabase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -7,16 +8,33 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+async function authHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
+  const token = await getAccessToken();
+  return {
+    ...(extra ?? {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+/**
+ * fetch com o token do Supabase injetado no header Authorization.
+ * Use no lugar de fetch() para qualquer chamada à API.
+ */
+export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const headers = await authHeaders(options.headers as Record<string, string> | undefined);
+  return fetch(url, { ...options, headers });
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const headers = await authHeaders(data ? { "Content-Type": "application/json" } : {});
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
   });
 
   await throwIfResNotOk(res);
@@ -29,9 +47,7 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
-      credentials: "include",
-    });
+    const res = await apiFetch(queryKey.join("/") as string);
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;

@@ -209,13 +209,17 @@ export default function Dashboard() {
                   <span className="font-bold text-emerald-600 font-mono">{formatCurrency(stats.currentMonthRevenue)}</span>
                 </div>
                 <div className="flex justify-between gap-2">
+                  <span className="text-sm text-muted-foreground">Lucro das vendas</span>
+                  <span className="font-bold text-emerald-600 font-mono">{formatCurrency(stats.currentMonthGrossProfit)}</span>
+                </div>
+                <div className="flex justify-between gap-2">
                   <span className="text-sm text-muted-foreground">Despesas</span>
                   <span className="font-bold text-rose-600 font-mono">- {formatCurrency(stats.currentMonthExpenses)}</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between gap-2">
-                  <span className="text-sm font-medium">Lucro estimado</span>
+                  <span className="text-sm font-medium">Lucro líquido estimado</span>
                   <span className="font-bold font-mono">
-                    {formatCurrency(stats.currentMonthRevenue - stats.currentMonthExpenses)}
+                    {formatCurrency(stats.currentMonthGrossProfit - stats.currentMonthExpenses)}
                   </span>
                 </div>
               </CardContent>
@@ -235,13 +239,17 @@ export default function Dashboard() {
                   <span className="font-bold text-emerald-600 font-mono">{formatCurrency(stats.previousMonthRevenue)}</span>
                 </div>
                 <div className="flex justify-between gap-2">
+                  <span className="text-sm text-muted-foreground">Lucro das vendas</span>
+                  <span className="font-bold text-emerald-600 font-mono">{formatCurrency(stats.previousMonthGrossProfit)}</span>
+                </div>
+                <div className="flex justify-between gap-2">
                   <span className="text-sm text-muted-foreground">Despesas</span>
                   <span className="font-bold text-rose-600 font-mono">- {formatCurrency(stats.previousMonthExpenses)}</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between gap-2">
-                  <span className="text-sm font-medium">Lucro estimado</span>
+                  <span className="text-sm font-medium">Lucro líquido estimado</span>
                   <span className="font-bold font-mono">
-                    {formatCurrency(stats.previousMonthRevenue - stats.previousMonthExpenses)}
+                    {formatCurrency(stats.previousMonthGrossProfit - stats.previousMonthExpenses)}
                   </span>
                 </div>
               </CardContent>

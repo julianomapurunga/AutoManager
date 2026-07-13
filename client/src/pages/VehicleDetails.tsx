@@ -110,8 +110,11 @@ export default function VehicleDetails() {
 
   const totalExpenses = vehicle.expenses.reduce((sum, e) => sum + e.amount, 0);
   const saleValue = vehicle.salePrice || vehicle.price || 0;
+  const acquisitionValue = vehicle.acquisitionPrice || 0;
   const commissionValue = vehicle.intermediaryCommission || 0;
-  const netProfit = saleValue - totalExpenses - commissionValue;
+  // Lucro = venda − compra − despesas − comissão
+  const grossProfit = saleValue - acquisitionValue;
+  const netProfit = grossProfit - totalExpenses - commissionValue;
   const isSold = vehicle.status === "Vendido";
 
   return (
@@ -341,6 +344,14 @@ export default function VehicleDetails() {
                 </div>
               )}
               <div className="flex justify-between items-center gap-2 text-rose-300">
+                <span>(-) Valor de Compra</span>
+                <span className="font-mono font-medium">{formatCurrency(acquisitionValue)}</span>
+              </div>
+              <div className="flex justify-between items-center gap-2 border-t border-slate-700 pt-3">
+                <span className="text-slate-300">(=) Lucro da Venda</span>
+                <span className="font-mono font-medium" data-testid="text-vehicle-gross-profit">{formatCurrency(grossProfit)}</span>
+              </div>
+              <div className="flex justify-between items-center gap-2 text-rose-300">
                 <span>(-) Despesas</span>
                 <span className="font-mono font-medium">{formatCurrency(totalExpenses)}</span>
               </div>
@@ -352,8 +363,12 @@ export default function VehicleDetails() {
               )}
               <Separator className="bg-slate-700" />
               <div className="flex justify-between items-center gap-2 text-lg font-bold">
-                <span className="text-emerald-400">Lucro {isSold ? "" : "Estimado"}</span>
-                <span className="font-mono text-emerald-400">{formatCurrency(netProfit)}</span>
+                <span className={netProfit >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                  Lucro Líquido {isSold ? "" : "Estimado"}
+                </span>
+                <span className={`font-mono ${netProfit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {formatCurrency(netProfit)}
+                </span>
               </div>
             </CardContent>
           </Card>

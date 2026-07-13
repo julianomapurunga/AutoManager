@@ -64,7 +64,7 @@ function loadChanges(version: string, title: string, notesFile?: string): string
   const filePath = path.resolve(notesFile);
   let content: string;
 
-  if (!fs.existsExistsSync?.(filePath) && !fs.existsSync(filePath)) {
+  if (!fs.existsSync(filePath)) {
     // Cria automaticamente o arquivo de notas com base em commits recentes
     content = generateNotesFile(filePath, version, title);
   } else {
@@ -103,10 +103,8 @@ function insertChangelogEntry(
     throw new Error("Array CHANGELOG não encontrado em shared/version.ts");
   }
 
-  const arrayStart = source.indexOf("[", idx);
-  if (arrayStart === -1) {
-    throw new Error("Início do array CHANGELOG não encontrado.");
-  }
+  // O '[' final do marcador é o início do array (não o '[' de ChangelogEntry[])
+  const arrayStart = idx + changelogMarker.length - 1;
 
   const before = source.slice(0, arrayStart + 1); // inclui o '['
   const after = source.slice(arrayStart + 1);

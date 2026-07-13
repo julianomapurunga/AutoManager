@@ -1,11 +1,16 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
+import { registerRoutes } from "./routes/index";
 import { serveStatic } from "./static";
+import { securityHeaders } from "./security";
 import { createServer } from "http";
 
 const app = express();
 const httpServer = createServer(app);
+
+// Necessário para req.ip refletir o cliente real atrás de proxy/load balancer
+app.set("trust proxy", 1);
+app.use(securityHeaders);
 
 declare module "http" {
   interface IncomingMessage {

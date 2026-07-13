@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, Save, Trash2, User, Phone, CreditCard, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
+import { apiFetch } from "@/lib/queryClient";
 
 export default function Profile() {
   const { user, isLoading } = useAuth();
@@ -30,9 +31,8 @@ export default function Profile() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      const res = await fetch("/api/auth/profile", {
+      const res = await apiFetch("/api/auth/profile", {
         method: "PUT",
-        credentials: "include",
         body: formData,
       });
       if (!res.ok) {
@@ -52,9 +52,8 @@ export default function Profile() {
 
   const removeImageMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/auth/profile-image", {
-        method: "DELETE",
-        credentials: "include",
+      const res = await apiFetch("/api/auth/profile-image", {
+        method: "DELETE"
       });
       if (!res.ok) throw new Error("Erro ao remover foto");
       return res.json();
@@ -214,7 +213,7 @@ export default function Profile() {
               <User className="w-5 h-5 text-muted-foreground shrink-0" />
               <div>
                 <p className="text-xs text-muted-foreground">Usuário</p>
-                <p className="font-medium text-sm" data-testid="text-profile-username">{user.username}</p>
+                <p className="font-medium text-sm" data-testid="text-profile-username">{user.email}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md">

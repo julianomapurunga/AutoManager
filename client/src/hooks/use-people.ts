@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type InsertPerson } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
+import { apiFetch } from "@/lib/queryClient";
 
 export function usePeople(type?: 'Proprietário' | 'Cliente', search?: string) {
   const queryKey = [api.people.list.path, { type, search }];
@@ -13,7 +14,7 @@ export function usePeople(type?: 'Proprietário' | 'Cliente', search?: string) {
   return useQuery({
     queryKey,
     queryFn: async () => {
-      const res = await fetch(api.people.list.path + queryString, { credentials: "include" });
+      const res = await apiFetch(api.people.list.path + queryString, { });
       if (!res.ok) throw new Error("Failed to fetch people");
       return api.people.list.responses[200].parse(await res.json());
     },
@@ -26,11 +27,10 @@ export function useCreatePerson() {
 
   return useMutation({
     mutationFn: async (data: InsertPerson) => {
-      const res = await fetch(api.people.create.path, {
+      const res = await apiFetch(api.people.create.path, {
         method: api.people.create.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
+        body: JSON.stringify(data)
       });
       
       if (!res.ok) {
@@ -56,7 +56,7 @@ export function useDeletePerson() {
   return useMutation({
     mutationFn: async (id: number) => {
       const url = buildUrl(api.people.delete.path, { id });
-      const res = await fetch(url, { method: api.people.delete.method, credentials: "include" });
+      const res = await apiFetch(url, { method: api.people.delete.method });
       if (!res.ok) throw new Error("Failed to delete person");
     },
     onSuccess: () => {

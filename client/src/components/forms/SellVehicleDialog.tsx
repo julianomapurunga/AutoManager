@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMarkAsSold } from "@/hooks/use-vehicles";
+import { useFipeAccess } from "@/hooks/use-auth";
+import { formatPlate } from "@/lib/masks";
 import { useIntermediaries } from "@/hooks/use-intermediaries";
 import { CpfPersonLookup } from "./CpfPersonLookup";
 import { formatCurrencyInput, parseCurrencyToNumber, centsToFormattedCurrency, formatMileageInput, parseMileageToNumber } from "./VehicleForm";
@@ -75,6 +77,7 @@ export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, o
   const [tradeInFipeCode, setTradeInFipeCode] = useState<string | null>(null);
   const [tradeInFipePrice, setTradeInFipePrice] = useState<string | null>(null);
 
+  const fipeAccess = useFipeAccess();
   const [fipeOpen, setFipeOpen] = useState(false);
   const [fipeVehicleType, setFipeVehicleType] = useState<VehicleType>("cars");
   const [fipeBrandId, setFipeBrandId] = useState("");
@@ -91,22 +94,22 @@ export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, o
 
   const { data: fipeBrands, isLoading: loadingFipeBrands } = useQuery<FipeBrand[]>({
     queryKey: [`/api/fipe/${fipeVehicleType}/brands`],
-    enabled: fipeOpen && hasTradeIn,
+    enabled: fipeAccess && fipeOpen && hasTradeIn,
     staleTime: 1000 * 60 * 30,
   });
   const { data: fipeModels, isLoading: loadingFipeModels } = useQuery<FipeModel[]>({
     queryKey: [`/api/fipe/${fipeVehicleType}/brands/${fipeBrandId}/models`],
-    enabled: fipeOpen && hasTradeIn && !!fipeBrandId,
+    enabled: fipeAccess && fipeOpen && hasTradeIn && !!fipeBrandId,
     staleTime: 1000 * 60 * 30,
   });
   const { data: fipeYears, isLoading: loadingFipeYears } = useQuery<FipeYear[]>({
     queryKey: [`/api/fipe/${fipeVehicleType}/brands/${fipeBrandId}/models/${fipeModelId}/years`],
-    enabled: fipeOpen && hasTradeIn && !!fipeBrandId && !!fipeModelId,
+    enabled: fipeAccess && fipeOpen && hasTradeIn && !!fipeBrandId && !!fipeModelId,
     staleTime: 1000 * 60 * 30,
   });
   const { data: fipeResult, isLoading: loadingFipeResult } = useQuery<FipeResult>({
     queryKey: [`/api/fipe/${fipeVehicleType}/brands/${fipeBrandId}/models/${fipeModelId}/years/${fipeYearId}`],
-    enabled: fipeOpen && hasTradeIn && !!fipeBrandId && !!fipeModelId && !!fipeYearId,
+    enabled: fipeAccess && fipeOpen && hasTradeIn && !!fipeBrandId && !!fipeModelId && !!fipeYearId,
     staleTime: 1000 * 60 * 10,
   });
 
@@ -263,6 +266,7 @@ export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, o
                 <CardTitle className="text-sm">Dados do Veículo de Troca</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {fipeAccess && (
                 <Card>
                   <CardHeader className="cursor-pointer pb-2 py-2 px-3" onClick={() => setFipeOpen(!fipeOpen)}>
                     <div className="flex items-center justify-between gap-2">
@@ -339,11 +343,12 @@ export function SellVehicleDialog({ vehicleId, vehicleName, askingPrice, open, o
                     </CardContent>
                   )}
                 </Card>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Placa *</Label>
-                    <Input placeholder="ABC-1234" value={tradeInPlate} onChange={(e) => setTradeInPlate(e.target.value.toUpperCase())} maxLength={8} required data-testid="input-trade-plate" />
+                    <Input placeholder="ABC-1234 ou ABC1D23" value={tradeInPlate} onChange={(e) => setTradeInPlate(formatPlate(e.target.value))} maxLength={8} required data-testid="input-trade-plate" />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Marca</Label>

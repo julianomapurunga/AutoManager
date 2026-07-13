@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type InsertExpense } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
+import { apiFetch } from "@/lib/queryClient";
 
 export function useCreateExpense() {
   const queryClient = useQueryClient();
@@ -8,11 +9,10 @@ export function useCreateExpense() {
 
   return useMutation({
     mutationFn: async (data: InsertExpense) => {
-      const res = await fetch(api.expenses.create.path, {
+      const res = await apiFetch(api.expenses.create.path, {
         method: api.expenses.create.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
+        body: JSON.stringify(data)
       });
       
       if (!res.ok) {
@@ -39,7 +39,7 @@ export function useDeleteExpense() {
   return useMutation({
     mutationFn: async ({ id, vehicleId }: { id: number; vehicleId: number }) => {
       const url = buildUrl(api.expenses.delete.path, { id });
-      const res = await fetch(url, { method: api.expenses.delete.method, credentials: "include" });
+      const res = await apiFetch(url, { method: api.expenses.delete.method });
       if (!res.ok) throw new Error("Failed to delete expense");
       return { vehicleId };
     },

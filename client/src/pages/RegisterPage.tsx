@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Car, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Car, Eye, EyeOff, AlertCircle, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { registerSchema, USER_GENDERS } from "@shared/models/auth";
-import { z } from "zod";
+import { signupSchema, USER_GENDERS, type SignupInput } from "@shared/models/auth";
+import { TRIAL_DAYS } from "@shared/models/tenancy";
+import { formatCpf, formatPhone } from "@/lib/masks";
 import {
   Form,
   FormControl,
@@ -19,26 +20,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-type RegisterForm = z.infer<typeof registerSchema>;
-
 interface RegisterPageProps {
   onSwitchToLogin: () => void;
 }
 
-const formatCpf = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
-};
-
-const formatPhone = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 2) return `(${digits}`;
-  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-};
 
 export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
   const { register, isRegistering } = useAuth();
@@ -46,32 +31,32 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  const form = useForm<RegisterForm>({
-    resolver: zodResolver(registerSchema),
+  const form = useForm<SignupInput>({
+    resolver: zodResolver(signupSchema),
     defaultValues: {
-      username: "",
+      organizationName: "",
+      email: "",
       password: "",
       firstName: "",
       lastName: "",
       phone: "",
       cpf: "",
       gender: undefined,
-      role: "Vendedor",
     },
   });
 
-  const handleSubmit = async (data: RegisterForm) => {
+  const handleSubmit = async (data: SignupInput) => {
     setError("");
     try {
       await register(data);
-      toast({ title: "Conta criada com sucesso!" });
+      toast({ title: "Loja cadastrada com sucesso! Bem-vindo ao VEHIRO." });
     } catch (err: any) {
       const msg = err.message || "";
       try {
         const parsed = JSON.parse(msg.split(": ").slice(1).join(": "));
         setError(parsed.message || "Erro ao criar conta");
       } catch {
-        setError("Erro ao criar conta");
+        setError(msg || "Erro ao criar conta");
       }
     }
   };
@@ -83,16 +68,20 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
           <div className="flex items-center justify-center gap-2">
             <Car className="w-10 h-10 text-primary" />
             <span className="text-3xl font-bold font-display bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              AutoManager
+              VEHIRO
             </span>
           </div>
-          <p className="text-muted-foreground">Crie sua conta para acessar o sistema</p>
+          <p className="text-muted-foreground">
+            Cadastre sua loja e comece com {TRIAL_DAYS} dias grátis
+          </p>
         </div>
 
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl">Cadastro</CardTitle>
-            <CardDescription>Preencha seus dados para criar uma conta</CardDescription>
+            <CardTitle className="text-2xl">Criar conta da loja</CardTitle>
+            <CardDescription>
+              Você será o administrador e poderá convidar sua equipe depois
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -103,6 +92,23 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
                     {error}
                   </div>
                 )}
+
+                <FormField
+                  control={form.control}
+                  name="organizationName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome da Loja / Pátio *</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input className="pl-9" placeholder="Ex.: Auto Center Silva" {...field} data-testid="input-organizationName" />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="grid grid-cols-2 gap-3">
                   <FormField
@@ -135,12 +141,12 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
 
                 <FormField
                   control={form.control}
-                  name="username"
+                  name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Usuário *</FormLabel>
+                      <FormLabel>E-mail *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Escolha um nome de usuário" {...field} data-testid="input-reg-username" />
+                        <Input type="email" placeholder="seu@email.com" {...field} data-testid="input-reg-email" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -242,7 +248,7 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
                 />
 
                 <Button type="submit" className="w-full" disabled={isRegistering} data-testid="button-submit-register">
-                  {isRegistering ? "Cadastrando..." : "Criar Conta"}
+                  {isRegistering ? "Cadastrando..." : "Criar Conta Grátis"}
                 </Button>
               </form>
             </Form>

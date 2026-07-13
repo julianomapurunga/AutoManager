@@ -1,12 +1,12 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, apiFetch } from "@/lib/queryClient";
 import type { VehicleImage } from "@shared/schema";
 
 export function useVehicleImages(vehicleId: number) {
   return useQuery<VehicleImage[]>({
     queryKey: ["/api/vehicles", vehicleId, "images"],
     queryFn: async () => {
-      const res = await fetch(`/api/vehicles/${vehicleId}/images`, { credentials: "include" });
+      const res = await apiFetch(`/api/vehicles/${vehicleId}/images`, { });
       if (!res.ok) throw new Error("Falha ao carregar imagens");
       return res.json();
     },
@@ -19,10 +19,9 @@ export function useUploadVehicleImages() {
     mutationFn: async ({ vehicleId, files }: { vehicleId: number; files: File[] }) => {
       const formData = new FormData();
       files.forEach((file) => formData.append("images", file));
-      const res = await fetch(`/api/vehicles/${vehicleId}/images`, {
+      const res = await apiFetch(`/api/vehicles/${vehicleId}/images`, {
         method: "POST",
-        body: formData,
-        credentials: "include",
+        body: formData
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: "Erro ao enviar imagens" }));

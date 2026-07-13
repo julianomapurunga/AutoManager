@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@shared/models/auth";
 
-type SafeUser = Omit<User, "password">;
+type SafeUser = User;
 
 export function useUsers() {
   return useQuery<SafeUser[]>({
@@ -26,7 +26,7 @@ export function useCreateUser() {
 export function useUpdateUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
       const res = await apiRequest("PUT", `/api/users/${id}`, data);
       return res.json();
     },
@@ -39,7 +39,7 @@ export function useUpdateUser() {
 export function useDeleteUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/users/${id}`);
     },
     onSuccess: () => {

@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.1.1";
+export const APP_VERSION = "0.3.1";
 
 export interface ChangelogEntry {
   version: string;
@@ -7,24 +7,66 @@ export interface ChangelogEntry {
   changes: string[];
 }
 
-export const CHANGELOG: ChangelogEntry[
+export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "0.3.1",
+    date: "2026-07-07",
+    title: "Correções de auditoria: cálculos, fluxo, segurança e performance",
+    changes: [
+      "Receita Total e Lucro Líquido corrigidos (antes somavam só 2 meses); comissões de intermediários agora entram nos custos",
+      "Bloqueio de venda dupla e validação de preço de venda",
+      "Vendedor agora consegue cadastrar Cliente durante a venda",
+      "Veículo de troca respeita o limite do plano e valida placa duplicada",
+      "Exclusões de pessoas/intermediários vinculados retornam mensagem clara; log de auditoria só registra exclusões concluídas",
+      "Rate limiting no cadastro e no catálogo público; headers de segurança; validação de conteúdo real das imagens (magic bytes)",
+      "Validação de CPF por dígitos verificadores em todos os cadastros",
+      "Dashboard ~3x mais rápido (queries em paralelo); índices no banco; cache em fotos e catálogo",
+    ],
+  },
+  {
+    version: "0.3.0",
+    date: "2026-07-07",
+    title: "Catálogo público e novos planos",
+    changes: [
+      "Novo plano Avançado (R$ 179/mês): 150 veículos, 10 usuários e integração FIPE",
+      "Integração FIPE agora disponível a partir do plano Avançado",
+      "Catálogo público de veículos (plano Profissional): página /loja/sua-loja com fotos, preços e contato via WhatsApp",
+      "Configurações do catálogo no painel: endereço personalizado, descrição e WhatsApp",
+      "Nova landing page comercial com planos, preços e FAQ",
+      "Plano Profissional atualizado para R$ 399/mês",
+    ],
+  },
+  {
+    version: "0.2.0",
+    date: "2026-07-07",
+    title: "Transformação em SaaS multi-tenant",
+    changes: [
+      "Sistema transformado em SaaS multi-tenant: cada loja tem seus próprios dados isolados",
+      "Cadastro público de lojas com 14 dias de teste grátis",
+      "Autenticação migrada para Supabase Auth (login por e-mail)",
+      "Estrutura de planos (Teste, Básico, Profissional) com limites de veículos e usuários",
+      "Billing preparado para integração com Stripe",
+      "Removida toda a estrutura do Replit (plugins, integrações e configs)",
+      "Log de auditoria agora registra o usuário responsável por cada ação",
+      "Correção do arquivo de changelog corrompido",
+    ],
+  },
   {
     version: "0.1.1",
     date: "2026-03-04",
     title: "Automação para controle de versão",
     changes: [
-      "- Add admin script, dotenv and session checks",
-      "- Merge branch 'main' of https://github.com/julianomapurunga/AutoManager",
-      "- Ajustes no env e package-lock",
-      "- feat: controle de versionamento e changelog",
-      "- feat: roles, audit log, permissions page, landing page update, hooks fix",
-      "- Adicionado README.md completo",
-      "- Atualização: Nova landing page, remoção de cadastro público e melhorias de navegação",
-      "- Atualização: intermediários, comissões, veículos de troca, máscaras de moeda e melhorias gerais",
-      "- feat: add user profile page, FIPE history chart, separated expense tracking",
-      "- Improve vehicle status display with colored badges and centering",
+      "Add admin script, dotenv and session checks",
+      "Ajustes no env e package-lock",
+      "Controle de versionamento e changelog",
+      "Roles, audit log, permissions page, landing page update, hooks fix",
+      "Adicionado README.md completo",
+      "Nova landing page, remoção de cadastro público e melhorias de navegação",
+      "Intermediários, comissões, veículos de troca, máscaras de moeda e melhorias gerais",
+      "Página de perfil do usuário, gráfico de histórico FIPE, despesas separadas",
+      "Badges coloridos de status de veículo",
     ],
-  },] = [
+  },
   {
     version: "1.0.0",
     date: "2026-02-13",

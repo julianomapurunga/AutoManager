@@ -20,6 +20,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CpfPersonLookup } from "./CpfPersonLookup";
+import { useFipeAccess } from "@/hooks/use-auth";
+import { formatPlate } from "@/lib/masks";
 import { Search, Check, ChevronDown, ChevronUp } from "lucide-react";
 
 const formSchema = insertVehicleSchema.extend({
@@ -142,6 +144,7 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
     return "";
   });
 
+  const fipeAccess = useFipeAccess();
   const [fipeOpen, setFipeOpen] = useState(false);
   const [fipeVehicleType, setFipeVehicleType] = useState<VehicleType>("cars");
   const [fipeBrandId, setFipeBrandId] = useState("");
@@ -151,25 +154,25 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
 
   const { data: fipeBrands, isLoading: loadingFipeBrands } = useQuery<FipeBrand[]>({
     queryKey: [`/api/fipe/${fipeVehicleType}/brands`],
-    enabled: fipeOpen,
+    enabled: fipeAccess && fipeOpen,
     staleTime: 1000 * 60 * 30,
   });
 
   const { data: fipeModels, isLoading: loadingFipeModels } = useQuery<FipeModel[]>({
     queryKey: [`/api/fipe/${fipeVehicleType}/brands/${fipeBrandId}/models`],
-    enabled: fipeOpen && !!fipeBrandId,
+    enabled: fipeAccess && fipeOpen && !!fipeBrandId,
     staleTime: 1000 * 60 * 30,
   });
 
   const { data: fipeYears, isLoading: loadingFipeYears } = useQuery<FipeYear[]>({
     queryKey: [`/api/fipe/${fipeVehicleType}/brands/${fipeBrandId}/models/${fipeModelId}/years`],
-    enabled: fipeOpen && !!fipeBrandId && !!fipeModelId,
+    enabled: fipeAccess && fipeOpen && !!fipeBrandId && !!fipeModelId,
     staleTime: 1000 * 60 * 30,
   });
 
   const { data: fipeResult, isLoading: loadingFipeResult } = useQuery<FipeResult>({
     queryKey: [`/api/fipe/${fipeVehicleType}/brands/${fipeBrandId}/models/${fipeModelId}/years/${fipeYearId}`],
-    enabled: fipeOpen && !!fipeBrandId && !!fipeModelId && !!fipeYearId,
+    enabled: fipeAccess && fipeOpen && !!fipeBrandId && !!fipeModelId && !!fipeYearId,
     staleTime: 1000 * 60 * 10,
   });
 
@@ -261,6 +264,7 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        {fipeAccess && (
         <Card>
           <CardHeader className="cursor-pointer pb-3" onClick={() => setFipeOpen(!fipeOpen)} data-testid="button-toggle-fipe-lookup">
             <div className="flex items-center justify-between gap-2">
@@ -384,6 +388,7 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
             </CardContent>
           )}
         </Card>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormField
@@ -393,7 +398,7 @@ export function VehicleForm({ defaultValues, defaultOwner, onSubmit, isPending, 
               <FormItem>
                 <FormLabel>Placa</FormLabel>
                 <FormControl>
-                  <Input placeholder="ABC-1234" {...field} className="uppercase" maxLength={8} data-testid="input-plate" />
+                  <Input placeholder="ABC-1234 ou ABC1D23" {...field} onChange={(e) => field.onChange(formatPlate(e.target.value))} maxLength={8} data-testid="input-plate" />
                 </FormControl>
                 <FormMessage />
               </FormItem>

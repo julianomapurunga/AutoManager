@@ -16,22 +16,40 @@ import {
   FileText,
   ChevronDown,
   ChevronRight,
+  Globe,
+  HelpCircle,
+  CreditCard,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, useFipeAccess, useCatalogAccess } from "@/hooks/use-auth";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { APP_VERSION } from "@shared/version";
 
-const items = [
+interface NavItem {
+  href: string;
+  icon: typeof LayoutDashboard;
+  label: string;
+  adminOnly: boolean;
+  roles?: readonly string[];
+  requiresFipe?: boolean;
+  requiresCatalog?: boolean;
+}
+
+const items: NavItem[] = [
   { href: "/", icon: LayoutDashboard, label: "Dashboard", adminOnly: false },
   { href: "/vehicles", icon: Car, label: "Veículos", adminOnly: false },
   { href: "/people", icon: Users, label: "Pessoas", adminOnly: false },
   { href: "/store-expenses", icon: Receipt, label: "Despesas da Loja", adminOnly: false },
   { href: "/financial", icon: BarChart3, label: "Financeiro", adminOnly: false },
-  { href: "/fipe", icon: Search, label: "FIPE", adminOnly: false },
+  { href: "/fipe", icon: Search, label: "FIPE", adminOnly: false, requiresFipe: true },
+  { href: "/catalog", icon: Globe, label: "Catálogo Público", adminOnly: false, roles: ["Administrador", "Gerente"], requiresCatalog: true },
+  { href: "/billing", icon: CreditCard, label: "Assinatura", adminOnly: false, roles: ["Administrador"] },
+  { href: "/help", icon: HelpCircle, label: "Ajuda", adminOnly: false },
   { href: "/settings", icon: Settings, label: "Configurações", adminOnly: true },
 ];
 
@@ -41,9 +59,51 @@ const settingsSubItems = [
   { href: "/activity-log", icon: History, label: "Log de Atividades", roles: ["Administrador"] as const },
 ];
 
+/** Item de menu bloqueado pelo plano: desabilitado, com cadeado e tooltip. */
+function LockedNavItem({ item, reason, compact = false }: { item: NavItem; reason: string; compact?: boolean }) {
+  return (
+    <Tooltip delayDuration={150}>
+      <TooltipTrigger asChild>
+        <div
+          aria-disabled="true"
+          data-testid={`nav-locked-${item.label.toLowerCase()}`}
+          className={cn(
+            "flex items-center gap-3 rounded-md font-medium cursor-not-allowed select-none",
+            "text-muted-foreground/50",
+            compact ? "px-4 py-3" : "px-4 py-3",
+          )}
+        >
+          <item.icon className="w-5 h-5 opacity-50" />
+          <span className="flex-1">{item.label}</span>
+          <Lock className="w-3.5 h-3.5 shrink-0" />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="right" className="max-w-56">
+        {reason}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Retorna o motivo do bloqueio pelo plano, ou null se o item está liberado. */
+function useItemLock() {
+  const fipeAccess = useFipeAccess();
+  const catalogAccess = useCatalogAccess();
+  return (item: NavItem): string | null => {
+    if (item.requiresFipe && !fipeAccess) {
+      return "A integração FIPE está disponível a partir do plano Avançado. Acesse Assinatura para fazer upgrade.";
+    }
+    if (item.requiresCatalog && !catalogAccess) {
+      return "O Catálogo Público está disponível no plano Profissional. Acesse Assinatura para fazer upgrade.";
+    }
+    return null;
+  };
+}
+
 export function Sidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const getLock = useItemLock();
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
   const getInitials = (first?: string | null, last?: string | null) => {
@@ -57,7 +117,7 @@ export function Sidebar() {
       <div className="p-6 border-b border-border/50">
         <h1 className="text-2xl font-bold font-display bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
           <Car className="w-8 h-8 text-primary" />
-          AutoManager
+          VEHIRO
         </h1>
       </div>
 
@@ -69,6 +129,10 @@ export function Sidebar() {
             return true;
           })
           .map((item) => {
+            const lockReason = getLock(item);
+            if (lockReason) {
+              return <LockedNavItem key={item.href} item={item} reason={lockReason} />;
+            }
             const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
             const isSettingsItem = item.label === "Configurações";
 
@@ -207,13 +271,14 @@ export function MobileHeader() {
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const getLock = useItemLock();
 
   return (
     <>
       <div className="md:hidden h-16 border-b border-border flex items-center justify-between gap-4 px-4 bg-card sticky top-0 z-50">
         <h1 className="text-xl font-bold font-display text-primary flex items-center gap-2">
           <Car className="w-6 h-6" />
-          AutoManager
+          VEHIRO
         </h1>
         <Button variant="ghost" size="icon" onClick={() => setOpen(!open)} data-testid="button-mobile-menu">
           {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -229,6 +294,10 @@ export function MobileHeader() {
               return true;
             })
             .map((item) => {
+              const lockReason = getLock(item);
+              if (lockReason) {
+                return <LockedNavItem key={item.href} item={item} reason={lockReason} compact />;
+              }
               const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
               const isSettingsItem = item.label === "Configurações";
 

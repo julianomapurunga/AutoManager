@@ -39,17 +39,32 @@ export default function Financial() {
         </div>
       ) : stats ? (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card data-testid="card-total-revenue">
               <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Receita Total</CardTitle>
                 <DollarSign className="h-4 w-4 text-emerald-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold font-mono text-emerald-600" data-testid="text-total-revenue">
-                  {formatCurrency(stats.currentMonthRevenue + stats.previousMonthRevenue)}
+                <div className="text-2xl font-bold font-mono text-emerald-600" data-testid="text-total-revenue">
+                  {formatCurrency(stats.allTimeRevenue)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">{stats.totalSold} veículos vendidos no total</p>
+              </CardContent>
+            </Card>
+
+            <Card data-testid="card-gross-profit">
+              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Lucro das Vendas</CardTitle>
+                <ArrowUpRight className="h-4 w-4 text-emerald-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold font-mono text-emerald-600" data-testid="text-gross-profit">
+                  {formatCurrency(stats.allTimeGrossProfit)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  venda − compra ({formatCurrency(stats.allTimeAcquisitionCost)} em aquisições)
+                </p>
               </CardContent>
             </Card>
 
@@ -59,23 +74,23 @@ export default function Financial() {
                 <ArrowDownRight className="h-4 w-4 text-rose-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold font-mono text-rose-600" data-testid="text-expenses-total">
+                <div className="text-2xl font-bold font-mono text-rose-600" data-testid="text-expenses-total">
                   {formatCurrency(stats.totalExpenses)}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">veículos + loja</p>
+                <p className="text-xs text-muted-foreground mt-1">veículos + loja + comissões</p>
               </CardContent>
             </Card>
 
-            <Card data-testid="card-net-profit">
+            <Card data-testid="card-net-profit" className="border-primary/40">
               <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Lucro Líquido Estimado</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Lucro Líquido</CardTitle>
                 <ArrowUpRight className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold font-mono" data-testid="text-net-profit">
-                  {formatCurrency((stats.currentMonthRevenue + stats.previousMonthRevenue) - stats.totalExpenses)}
+                <div className="text-2xl font-bold font-mono" data-testid="text-net-profit">
+                  {formatCurrency(stats.allTimeGrossProfit - stats.totalExpenses)}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">receita menos despesas</p>
+                <p className="text-xs text-muted-foreground mt-1">lucro das vendas − despesas</p>
               </CardContent>
             </Card>
           </div>
@@ -100,13 +115,23 @@ export default function Financial() {
                     <span className="font-bold text-emerald-600 font-mono">{formatCurrency(stats.currentMonthRevenue)}</span>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <span className="text-sm text-muted-foreground">Despesas do mês</span>
+                    <span className="text-sm text-muted-foreground">Custo de aquisição</span>
+                    <span className="font-bold text-rose-600 font-mono">- {formatCurrency(stats.currentMonthAcquisitionCost)}</span>
+                  </div>
+                  <div className="border-t pt-2 flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Lucro das vendas</span>
+                    <span className="font-bold text-emerald-600 font-mono" data-testid="text-current-gross-profit">
+                      {formatCurrency(stats.currentMonthGrossProfit)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Despesas do mês (incl. comissões)</span>
                     <span className="font-bold text-rose-600 font-mono">- {formatCurrency(stats.currentMonthExpenses)}</span>
                   </div>
                   <div className="border-t pt-2 flex justify-between gap-2">
-                    <span className="text-sm font-medium">Lucro do mês</span>
+                    <span className="text-sm font-medium">Lucro líquido do mês</span>
                     <span className="font-bold font-mono" data-testid="text-current-profit">
-                      {formatCurrency(stats.currentMonthRevenue - stats.currentMonthExpenses)}
+                      {formatCurrency(stats.currentMonthGrossProfit - stats.currentMonthExpenses)}
                     </span>
                   </div>
                 </CardContent>
@@ -129,13 +154,23 @@ export default function Financial() {
                     <span className="font-bold text-emerald-600 font-mono">{formatCurrency(stats.previousMonthRevenue)}</span>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <span className="text-sm text-muted-foreground">Despesas do mês</span>
+                    <span className="text-sm text-muted-foreground">Custo de aquisição</span>
+                    <span className="font-bold text-rose-600 font-mono">- {formatCurrency(stats.previousMonthAcquisitionCost)}</span>
+                  </div>
+                  <div className="border-t pt-2 flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Lucro das vendas</span>
+                    <span className="font-bold text-emerald-600 font-mono" data-testid="text-previous-gross-profit">
+                      {formatCurrency(stats.previousMonthGrossProfit)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">Despesas do mês (incl. comissões)</span>
                     <span className="font-bold text-rose-600 font-mono">- {formatCurrency(stats.previousMonthExpenses)}</span>
                   </div>
                   <div className="border-t pt-2 flex justify-between gap-2">
-                    <span className="text-sm font-medium">Lucro do mês</span>
+                    <span className="text-sm font-medium">Lucro líquido do mês</span>
                     <span className="font-bold font-mono" data-testid="text-previous-profit">
-                      {formatCurrency(stats.previousMonthRevenue - stats.previousMonthExpenses)}
+                      {formatCurrency(stats.previousMonthGrossProfit - stats.previousMonthExpenses)}
                     </span>
                   </div>
                 </CardContent>
@@ -180,8 +215,9 @@ export default function Financial() {
                 <TableRow className="bg-muted/50">
                   <TableHead>Veículo</TableHead>
                   <TableHead>Placa</TableHead>
-                  <TableHead>Preço Pedido</TableHead>
+                  <TableHead>Valor de Compra</TableHead>
                   <TableHead>Valor Vendido</TableHead>
+                  <TableHead>Lucro da Venda</TableHead>
                   <TableHead>Proprietário</TableHead>
                 </TableRow>
               </TableHeader>
@@ -196,9 +232,25 @@ export default function Financial() {
                       </Link>
                     </TableCell>
                     <TableCell className="font-mono uppercase">{vehicle.plate}</TableCell>
-                    <TableCell className="font-mono text-muted-foreground">{formatCurrency(vehicle.price || 0)}</TableCell>
+                    <TableCell className="font-mono text-muted-foreground">
+                      {vehicle.acquisitionPrice != null ? formatCurrency(vehicle.acquisitionPrice) : "—"}
+                    </TableCell>
                     <TableCell className="font-mono font-medium text-emerald-600">
                       {vehicle.salePrice ? formatCurrency(vehicle.salePrice) : '-'}
+                    </TableCell>
+                    <TableCell
+                      className={`font-mono font-bold ${
+                        vehicle.salePrice != null && vehicle.acquisitionPrice != null
+                          ? vehicle.salePrice - vehicle.acquisitionPrice >= 0
+                            ? "text-emerald-600"
+                            : "text-rose-600"
+                          : "text-muted-foreground"
+                      }`}
+                      data-testid={`text-sale-profit-${vehicle.id}`}
+                    >
+                      {vehicle.salePrice != null && vehicle.acquisitionPrice != null
+                        ? formatCurrency(vehicle.salePrice - vehicle.acquisitionPrice)
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{vehicle.owner?.name || "—"}</TableCell>
                   </TableRow>

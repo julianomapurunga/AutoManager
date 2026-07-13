@@ -22,9 +22,11 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 interface LoginPageProps {
   onBackToLanding?: () => void;
+  onGoToRegister?: () => void;
+  onForgotPassword?: () => void;
 }
 
-export default function LoginPage({ onBackToLanding }: LoginPageProps) {
+export default function LoginPage({ onBackToLanding, onGoToRegister, onForgotPassword }: LoginPageProps) {
   const { login, isLoggingIn } = useAuth();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
@@ -33,7 +35,7 @@ export default function LoginPage({ onBackToLanding }: LoginPageProps) {
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
     },
   });
@@ -47,9 +49,9 @@ export default function LoginPage({ onBackToLanding }: LoginPageProps) {
       const msg = err.message || "";
       try {
         const parsed = JSON.parse(msg.split(": ").slice(1).join(": "));
-        setError(parsed.message || "Usuário ou senha inválidos");
+        setError(parsed.message || "E-mail ou senha inválidos");
       } catch {
-        setError("Usuário ou senha inválidos");
+        setError(err.message || "E-mail ou senha inválidos");
       }
     }
   };
@@ -73,7 +75,7 @@ export default function LoginPage({ onBackToLanding }: LoginPageProps) {
           <div className="flex items-center justify-center gap-2">
             <Car className="w-10 h-10 text-primary" />
             <span className="text-3xl font-bold font-display bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              AutoManager
+              VEHIRO
             </span>
           </div>
           <p className="text-muted-foreground">Sistema de Controle de Pátio de Veículos</p>
@@ -96,15 +98,16 @@ export default function LoginPage({ onBackToLanding }: LoginPageProps) {
 
                 <FormField
                   control={form.control}
-                  name="username"
+                  name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Usuário</FormLabel>
+                      <FormLabel>E-mail</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Seu nome de usuário"
+                          type="email"
+                          placeholder="seu@email.com"
                           {...field}
-                          data-testid="input-username"
+                          data-testid="input-email"
                         />
                       </FormControl>
                       <FormMessage />
@@ -143,11 +146,37 @@ export default function LoginPage({ onBackToLanding }: LoginPageProps) {
                   )}
                 />
 
+                {onForgotPassword && (
+                  <div className="text-right -mt-2">
+                    <button
+                      type="button"
+                      onClick={onForgotPassword}
+                      className="text-sm text-primary hover:underline"
+                      data-testid="link-forgot-password"
+                    >
+                      Esqueci minha senha
+                    </button>
+                  </div>
+                )}
+
                 <Button type="submit" className="w-full" disabled={isLoggingIn} data-testid="button-submit-login">
                   {isLoggingIn ? "Entrando..." : "Entrar"}
                 </Button>
               </form>
             </Form>
+
+            {onGoToRegister && (
+              <div className="mt-6 text-center text-sm">
+                <span className="text-muted-foreground">Ainda não tem conta? </span>
+                <button
+                  onClick={onGoToRegister}
+                  className="text-primary font-medium hover:underline"
+                  data-testid="link-register"
+                >
+                  Cadastre sua loja
+                </button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

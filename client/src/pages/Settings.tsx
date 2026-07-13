@@ -13,7 +13,9 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { registerSchema, updateUserSchema, USER_ROLES, USER_GENDERS } from "@shared/models/auth";
+import { createUserSchema, updateUserSchema, USER_ROLES, USER_GENDERS } from "@shared/models/auth";
+import { isValidCpf } from "@shared/cpf";
+import { formatCpf, formatPhone } from "@/lib/masks";
 import { z } from "zod";
 import {
   Form,
@@ -27,23 +29,9 @@ import { Settings as SettingsIcon, UserPlus, Pencil, Trash2, Shield, ShieldCheck
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Intermediary } from "@shared/schema";
 
-type CreateUserForm = z.infer<typeof registerSchema>;
+type CreateUserForm = z.infer<typeof createUserSchema>;
 type UpdateUserForm = z.infer<typeof updateUserSchema>;
 
-const formatCpf = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
-};
-
-const formatPhone = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 2) return `(${digits}`;
-  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-};
 
 export default function Settings() {
   const { user: currentUser } = useAuth();
@@ -64,7 +52,7 @@ export default function Settings() {
     return (
       u.firstName.toLowerCase().includes(term) ||
       (u.lastName?.toLowerCase().includes(term)) ||
-      u.username.toLowerCase().includes(term) ||
+      u.email.toLowerCase().includes(term) ||
       u.cpf.includes(term) ||
       u.phone.includes(term)
     );
@@ -145,7 +133,7 @@ export default function Settings() {
                         {u.firstName} {u.lastName}
                       </p>
                       <p className="text-sm text-muted-foreground truncate">
-                        @{u.username} &middot; {u.cpf} &middot; {u.phone}
+                        {u.email} &middot; {u.cpf} &middot; {u.phone}
                       </p>
                     </div>
                   </div>
@@ -532,9 +520,9 @@ function CreateUserDialog({
   const [error, setError] = useState("");
 
   const form = useForm<CreateUserForm>({
-    resolver: zodResolver(registerSchema),
+    resolver: zodResolver(createUserSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
       firstName: "",
       lastName: "",
@@ -588,10 +576,10 @@ function CreateUserDialog({
                 </FormItem>
               )} />
             </div>
-            <FormField control={form.control} name="username" render={({ field }) => (
+            <FormField control={form.control} name="email" render={({ field }) => (
               <FormItem>
-                <FormLabel>Usuário *</FormLabel>
-                <FormControl><Input placeholder="Nome de usuário" {...field} data-testid="input-create-username" /></FormControl>
+                <FormLabel>E-mail *</FormLabel>
+                <FormControl><Input type="email" placeholder="email@exemplo.com" {...field} data-testid="input-create-email" /></FormControl>
                 <FormMessage />
               </FormItem>
             )} />
@@ -688,7 +676,7 @@ function EditUserDialog({
   const editSchema = updateUserSchema.extend({
     firstName: z.string().min(2, "Nome é obrigatório"),
     phone: z.string().min(10, "Telefone inválido"),
-    cpf: z.string().min(11, "CPF inválido"),
+    cpf: z.string().min(11, "CPF inválido").refine(isValidCpf, "CPF inválido: confira os dígitos"),
     gender: z.enum(USER_GENDERS),
     role: z.enum(USER_ROLES),
     password: z.string().optional().refine((val) => !val || val.length >= 6, { message: "Senha deve ter no mínimo 6 caracteres" }),

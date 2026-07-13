@@ -1,19 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
+import { formatCpf, formatCpfCnpj, formatPhone } from "@/lib/masks";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useCreatePerson } from "@/hooks/use-people";
 import { Check, X, Search, UserPlus, Loader2 } from "lucide-react";
 import type { Person } from "@shared/schema";
+import { apiFetch } from "@/lib/queryClient";
 
-function formatCpf(value: string): string {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
-}
 
 interface CpfPersonLookupProps {
   label: string;
@@ -37,7 +32,7 @@ export function CpfPersonLookup({ label, personType, selectedPerson, onPersonCha
     setSearched(false);
     setNotFound(false);
     try {
-      const res = await fetch(`/api/people/search-by-document?document=${encodeURIComponent(cleaned)}`, { credentials: "include" });
+      const res = await apiFetch(`/api/people/search-by-document?document=${encodeURIComponent(cleaned)}`, { });
       const person = await res.json();
       if (person && person.id) {
         onPersonChange(person);
@@ -190,12 +185,6 @@ function CreatePersonDialog({ open, onOpenChange, personType, initialCpf, onCrea
     }
   }, [open, initialCpf]);
 
-  const formatPhone = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 11);
-    if (digits.length <= 2) return `(${digits}`;
-    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,7 +239,7 @@ function CreatePersonDialog({ open, onOpenChange, personType, initialCpf, onCrea
               <Input
                 placeholder="000.000.000-00"
                 value={document}
-                onChange={(e) => setDocument(formatCpf(e.target.value))}
+                onChange={(e) => setDocument(formatCpfCnpj(e.target.value))}
                 maxLength={14}
                 data-testid="input-new-person-cpf"
               />

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatPhone, formatCpfCnpj } from "@/lib/masks";
 
 // The schema from shared is already strict enough, but we might want validations on frontend
 const formSchema = insertPersonSchema;
@@ -60,7 +61,12 @@ export function PersonForm({ defaultValues, onSubmit, isPending, onCancel }: Per
               <FormItem>
                 <FormLabel>Telefone / WhatsApp</FormLabel>
                 <FormControl>
-                  <Input placeholder="(11) 99999-9999" {...field} />
+                  <Input
+                    placeholder="(11) 99999-9999"
+                    {...field}
+                    onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                    maxLength={15}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -90,7 +96,13 @@ export function PersonForm({ defaultValues, onSubmit, isPending, onCancel }: Per
               <FormItem>
                 <FormLabel>CPF / CNPJ (Opcional)</FormLabel>
                 <FormControl>
-                  <Input placeholder="000.000.000-00" {...field} value={field.value || ""} />
+                  <Input
+                    placeholder="000.000.000-00"
+                    {...field}
+                    value={field.value || ""}
+                    onChange={(e) => field.onChange(formatCpfCnpj(e.target.value))}
+                    maxLength={18}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { InsertVehicle, Vehicle, Person, Expense, VehicleWithDetails } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
+import { apiFetch } from "@/lib/queryClient";
 
 type VehicleListItem = Vehicle & { owner: Person };
 
@@ -16,7 +17,7 @@ export function useVehicles(filters?: { status?: string; search?: string }) {
   return useQuery<VehicleListItem[]>({
     queryKey,
     queryFn: async () => {
-      const res = await fetch(api.vehicles.list.path + queryString, { credentials: "include" });
+      const res = await apiFetch(api.vehicles.list.path + queryString, { });
       if (!res.ok) throw new Error("Failed to fetch vehicles");
       return res.json();
     },
@@ -28,7 +29,7 @@ export function useVehicle(id: number) {
     queryKey: [api.vehicles.get.path, id],
     queryFn: async () => {
       const url = buildUrl(api.vehicles.get.path, { id });
-      const res = await fetch(url, { credentials: "include" });
+      const res = await apiFetch(url, { });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch vehicle details");
       return res.json();
@@ -43,11 +44,10 @@ export function useCreateVehicle() {
 
   return useMutation({
     mutationFn: async (data: InsertVehicle) => {
-      const res = await fetch(api.vehicles.create.path, {
+      const res = await apiFetch(api.vehicles.create.path, {
         method: api.vehicles.create.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
+        body: JSON.stringify(data)
       });
       
       if (!res.ok) {
@@ -74,11 +74,10 @@ export function useUpdateVehicle() {
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: number } & Partial<InsertVehicle>) => {
       const url = buildUrl(api.vehicles.update.path, { id });
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: api.vehicles.update.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-        credentials: "include",
+        body: JSON.stringify(updates)
       });
 
       if (!res.ok) throw new Error("Failed to update vehicle");
@@ -103,7 +102,7 @@ export function useDeleteVehicle() {
   return useMutation({
     mutationFn: async (id: number) => {
       const url = buildUrl(api.vehicles.delete.path, { id });
-      const res = await fetch(url, { method: api.vehicles.delete.method, credentials: "include" });
+      const res = await apiFetch(url, { method: api.vehicles.delete.method });
       if (!res.ok) throw new Error("Failed to delete vehicle");
     },
     onSuccess: () => {
@@ -148,11 +147,10 @@ export function useMarkAsSold() {
   return useMutation({
     mutationFn: async ({ id, ...data }: SellData) => {
       const url = buildUrl(api.sales.markAsSold.path, { id });
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
+        body: JSON.stringify(data)
       });
       if (!res.ok) {
         const err = await res.json();
