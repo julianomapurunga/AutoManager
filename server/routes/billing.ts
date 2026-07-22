@@ -1,16 +1,20 @@
 import type { Express } from "express";
+import { timingSafeEqual } from "crypto";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "../db";
 import { requireAuth, requireRole } from "../auth";
 import { rateLimit } from "../security";
 import {
   organizations, PLANS, ORG_PLANS, hasActiveSubscription, type OrgPlan,
+  type Organization,
 } from "@shared/models/tenancy";
+import { coupons, couponDurationLabel } from "@shared/schema";
 import {
-  isAsaasConfigured, createCustomer, createSubscription,
-  cancelSubscription, getSubscriptionPayments,
+  isAsaasConfigured, createCustomer, createSubscription, updateSubscription,
+  cancelSubscription, getSubscriptionPayments, type AsaasPayment,
 } from "../asaas";
+import { getSetting } from "../settings";
 
 /**
  * Billing com Asaas (sandbox por padrão).
@@ -23,6 +27,63 @@ import {
  *    → ativamos o plano da organização.
  * 3. PAYMENT_OVERDUE → past_due; assinatura cancelada → canceled.
  */
+/** Status do Asaas que representam uma cobrança efetivamente paga. */
+const PAID_STATUSES = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"];
+
+const countPaid = (payments: AsaasPayment[]) =>
+  payments.filter((p) => PAID_STATUSES.includes(p.status)).length;
+
+/**
+ * Acerta o cupom da organização a cada pagamento confirmado. Idempotente: conta
+ * as cobranças pagas no Asaas em vez de incrementar contadores por evento, porque
+ * PAYMENT_CONFIRMED e PAYMENT_RECEIVED disparam os dois para a mesma cobrança.
+ * Chamado tanto pelo webhook quanto pelo /sync.
+ */
+async function settleCoupon(org: Organization, payments: AsaasPayment[]): Promise<void> {
+  if (!org.couponCode) return;
+  const paidCount = countPaid(payments);
+  if (paidCount === 0) return;
+
+  // 1. Contabiliza o resgate uma única vez, no primeiro pagamento.
+  //    O UPDATE condicional em couponRedeemedAt é atômico: se dois webhooks
+  //    chegarem juntos, só um marca a linha e só um incrementa o usedCount.
+  const [claimed] = await db
+    .update(organizations)
+    .set({ couponRedeemedAt: new Date() })
+    .where(and(eq(organizations.id, org.id), isNull(organizations.couponRedeemedAt)))
+    .returning();
+
+  if (claimed) {
+    await db
+      .update(coupons)
+      .set({ usedCount: sql`${coupons.usedCount} + 1` })
+      .where(eq(coupons.code, org.couponCode));
+    console.log(`[billing] Cupom ${org.couponCode} resgatado pela org ${org.id}`);
+  }
+
+  // 2. Fim da promoção: restaura o valor cheio no Asaas.
+  //    couponCyclesTotal null = cupom permanente, nunca restaura.
+  if (
+    org.couponCyclesTotal != null &&
+    org.couponFullValue != null &&
+    org.asaasSubscriptionId &&
+    paidCount >= org.couponCyclesTotal
+  ) {
+    await updateSubscription(org.asaasSubscriptionId, {
+      value: org.couponFullValue / 100,
+      updatePendingPayments: true,
+    });
+    await db
+      .update(organizations)
+      .set({ couponCode: null, couponCyclesTotal: null, couponFullValue: null })
+      .where(eq(organizations.id, org.id));
+    console.log(
+      `[billing] Org ${org.id}: promoção ${org.couponCode} encerrada após ` +
+        `${paidCount} pagamento(s) — valor cheio restaurado no Asaas`,
+    );
+  }
+}
+
 export function registerBillingRoutes(app: Express): void {
   /** Status da assinatura + catálogo de planos. */
   app.get("/api/billing/status", requireAuth, async (req, res) => {
@@ -77,11 +138,35 @@ export function registerBillingRoutes(app: Express): void {
 
         const input = z.object({
           plan: z.enum(ORG_PLANS).refine((p) => p !== "trial", "Plano inválido"),
+          couponCode: z.string().trim().toUpperCase().max(30).optional(),
         }).parse(req.body);
 
         const org = req.organization!;
         const user = req.user!;
         const plan = PLANS[input.plan];
+
+        // Cupom de desconto percentual. O valor promocional vale por
+        // `durationCycles` mensalidades (null = permanente); settleCoupon()
+        // restaura o valor cheio no Asaas quando a promoção acaba.
+        let monthlyValue = plan.priceMonthly; // centavos
+        let appliedCoupon: string | null = null;
+        let couponCycles: number | null = null;
+        if (input.couponCode) {
+          const [coupon] = await db.select().from(coupons).where(eq(coupons.code, input.couponCode));
+          const now = new Date();
+          if (!coupon || !coupon.active) {
+            return res.status(400).json({ message: "Cupom inválido", field: "couponCode" });
+          }
+          if (coupon.expiresAt && coupon.expiresAt < now) {
+            return res.status(400).json({ message: "Cupom expirado", field: "couponCode" });
+          }
+          if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {
+            return res.status(400).json({ message: "Cupom esgotado", field: "couponCode" });
+          }
+          monthlyValue = Math.round(plan.priceMonthly * (100 - coupon.percentOff) / 100);
+          appliedCoupon = coupon.code;
+          couponCycles = coupon.durationCycles;
+        }
 
         // 1. Cliente no Asaas (reusa se já existir)
         let customerId = org.asaasCustomerId;
@@ -105,8 +190,10 @@ export function registerBillingRoutes(app: Express): void {
         const today = new Date().toISOString().slice(0, 10);
         const subscription = await createSubscription({
           customer: customerId,
-          value: plan.priceMonthly / 100, // Asaas usa reais, o sistema usa centavos
-          description: `VEHIRO — Plano ${plan.name}`,
+          value: monthlyValue / 100, // Asaas usa reais, o sistema usa centavos
+          description:
+            `VEHIRO — Plano ${plan.name}` +
+            (appliedCoupon ? ` (cupom ${appliedCoupon} — ${couponDurationLabel(couponCycles)})` : ""),
           externalReference: JSON.stringify({ organizationId: org.id, plan: input.plan }),
           nextDueDate: today,
         });
@@ -121,6 +208,12 @@ export function registerBillingRoutes(app: Express): void {
             asaasCustomerId: customerId,
             asaasSubscriptionId: subscription.id,
             pendingPlan: input.plan,
+            couponCode: appliedCoupon,
+            couponCyclesTotal: appliedCoupon ? couponCycles : null,
+            couponFullValue: appliedCoupon ? plan.priceMonthly : null,
+            // Zera o resgate: esta é uma assinatura nova (troca de plano ou
+            // nova tentativa), então o cupom ainda não foi contabilizado nela.
+            couponRedeemedAt: null,
           })
           .where(eq(organizations.id, org.id));
 
@@ -153,9 +246,10 @@ export function registerBillingRoutes(app: Express): void {
       }
 
       const payments = await getSubscriptionPayments(org.asaasSubscriptionId);
-      const PAID = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"];
-      const hasPaid = payments.some((p) => PAID.includes(p.status));
+      const hasPaid = countPaid(payments) > 0;
       const hasOverdue = payments.some((p) => p.status === "OVERDUE");
+
+      await settleCoupon(org, payments);
 
       if (hasPaid && (org.pendingPlan || org.subscriptionStatus !== "active")) {
         const newPlan = (org.pendingPlan as OrgPlan | null) ?? (org.plan as OrgPlan);
@@ -181,14 +275,33 @@ export function registerBillingRoutes(app: Express): void {
     }
   });
 
+  const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 120 });
+
+  /** Comparação em tempo constante (evita timing attack no token). */
+  function safeEqual(a: string, b: string): boolean {
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    if (bufA.length !== bufB.length) return false;
+    return timingSafeEqual(bufA, bufB);
+  }
+
   /**
    * Webhook do Asaas.
    * Configure no painel: Integrações → Webhooks → URL {SEU_DOMINIO}/api/billing/webhook
    * e defina um "Token de autenticação" igual ao ASAAS_WEBHOOK_TOKEN do .env.
+   *
+   * SEGURANÇA: fail-closed — sem ASAAS_WEBHOOK_TOKEN configurado, o webhook
+   * NÃO processa nada (senão qualquer um poderia forjar pagamentos e ativar
+   * planos grátis). O botão "Já paguei, atualizar" continua funcionando via /sync.
    */
-  app.post("/api/billing/webhook", async (req, res) => {
-    const expectedToken = process.env.ASAAS_WEBHOOK_TOKEN;
-    if (expectedToken && req.headers["asaas-access-token"] !== expectedToken) {
+  app.post("/api/billing/webhook", webhookLimiter, async (req, res) => {
+    const expectedToken = getSetting("asaas_webhook_token") || process.env.ASAAS_WEBHOOK_TOKEN;
+    if (!expectedToken) {
+      console.warn("[billing] Webhook recebido mas ASAAS_WEBHOOK_TOKEN não está configurado — ignorando.");
+      return res.status(503).json({ message: "Webhook não configurado" });
+    }
+    const received = String(req.headers["asaas-access-token"] ?? "");
+    if (!safeEqual(received, expectedToken)) {
       return res.status(401).json({ message: "Token inválido" });
     }
 
@@ -233,6 +346,17 @@ export function registerBillingRoutes(app: Express): void {
             pendingPlan: null,
           }).where(eq(organizations.id, org.id));
           console.log(`[billing] Org ${org.id} ativada no plano ${newPlan} (${event})`);
+
+          if (org.couponCode && org.asaasSubscriptionId) {
+            try {
+              const payments = await getSubscriptionPayments(org.asaasSubscriptionId);
+              await settleCoupon(org, payments);
+            } catch (err) {
+              // Não propaga: o plano já foi ativado e devolver 500 faria o Asaas
+              // reenviar o evento. O /sync acerta o cupom na próxima chamada.
+              console.error(`[billing] Falha ao acertar cupom da org ${org.id}:`, err);
+            }
+          }
           break;
         }
         case "PAYMENT_OVERDUE": {
@@ -247,6 +371,10 @@ export function registerBillingRoutes(app: Express): void {
           await db.update(organizations).set({
             subscriptionStatus: "canceled",
             pendingPlan: null,
+            // A assinatura acabou: a promoção não se aplica a mais nada.
+            couponCode: null,
+            couponCyclesTotal: null,
+            couponFullValue: null,
           }).where(eq(organizations.id, org.id));
           console.log(`[billing] Org ${org.id} cancelada (${event})`);
           break;

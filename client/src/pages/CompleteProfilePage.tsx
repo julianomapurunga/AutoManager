@@ -1,15 +1,14 @@
 import { useState } from "react";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, type NeedsProfile } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Car, Eye, EyeOff, AlertCircle, Store } from "lucide-react";
+import { Car, AlertCircle, Store, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signupSchema, USER_GENDERS, type SignupInput } from "@shared/models/auth";
-import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+import { completeProfileSchema, USER_GENDERS, type CompleteProfileInput } from "@shared/models/auth";
 import { TRIAL_DAYS } from "@shared/models/tenancy";
 import { formatCpf, formatPhone } from "@/lib/masks";
 import {
@@ -21,43 +20,39 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-interface RegisterPageProps {
-  onSwitchToLogin: () => void;
+interface CompleteProfilePageProps {
+  info: NeedsProfile;
 }
 
-
-export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
-  const { register, isRegistering } = useAuth();
+export default function CompleteProfilePage({ info }: CompleteProfilePageProps) {
+  const { completeProfile, isCompletingProfile, logout } = useAuth();
   const { toast } = useToast();
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  const form = useForm<SignupInput>({
-    resolver: zodResolver(signupSchema),
+  const form = useForm<CompleteProfileInput>({
+    resolver: zodResolver(completeProfileSchema),
     defaultValues: {
       organizationName: "",
-      email: "",
-      password: "",
-      firstName: "",
-      lastName: "",
+      firstName: info.firstName ?? "",
+      lastName: info.lastName ?? "",
       phone: "",
       cpf: "",
       gender: undefined,
     },
   });
 
-  const handleSubmit = async (data: SignupInput) => {
+  const handleSubmit = async (data: CompleteProfileInput) => {
     setError("");
     try {
-      await register(data);
-      toast({ title: "Loja cadastrada com sucesso! Bem-vindo ao VEHIRO." });
+      await completeProfile(data);
+      toast({ title: "Cadastro concluído! Bem-vindo ao VEHIRO." });
     } catch (err: any) {
       const msg = err.message || "";
       try {
         const parsed = JSON.parse(msg.split(": ").slice(1).join(": "));
-        setError(parsed.message || "Erro ao criar conta");
+        setError(parsed.message || "Erro ao concluir cadastro");
       } catch {
-        setError(msg || "Erro ao criar conta");
+        setError(msg || "Erro ao concluir cadastro");
       }
     }
   };
@@ -73,33 +68,24 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             </span>
           </div>
           <p className="text-muted-foreground">
-            Cadastre sua loja e comece com {TRIAL_DAYS} dias grátis
+            Falta pouco! Complete o cadastro da sua loja e comece com {TRIAL_DAYS} dias grátis
           </p>
         </div>
 
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl">Criar conta da loja</CardTitle>
+            <CardTitle className="text-2xl">Concluir cadastro</CardTitle>
             <CardDescription>
-              Você será o administrador e poderá convidar sua equipe depois
+              {info.email
+                ? <>Você entrou com <strong>{info.email}</strong>. Precisamos de mais alguns dados para criar sua loja.</>
+                : "Precisamos de mais alguns dados para criar sua loja."}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <GoogleSignInButton label="Cadastrar com Google" />
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">ou preencha os dados</span>
-              </div>
-            </div>
-
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                 {error && (
-                  <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm" data-testid="text-register-error">
+                  <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm" data-testid="text-complete-error">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     {error}
                   </div>
@@ -150,51 +136,6 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
                     )}
                   />
                 </div>
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>E-mail *</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="seu@email.com" {...field} data-testid="input-reg-email" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Senha *</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Mínimo 8 caracteres"
-                            {...field}
-                            data-testid="input-reg-password"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0"
-                            onClick={() => setShowPassword(!showPassword)}
-                            data-testid="button-toggle-reg-password"
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </Button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
                 <FormField
                   control={form.control}
@@ -259,20 +200,20 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
                   )}
                 />
 
-                <Button type="submit" className="w-full" disabled={isRegistering} data-testid="button-submit-register">
-                  {isRegistering ? "Cadastrando..." : "Criar Conta Grátis"}
+                <Button type="submit" className="w-full" disabled={isCompletingProfile} data-testid="button-submit-complete">
+                  {isCompletingProfile ? "Concluindo..." : "Concluir cadastro"}
                 </Button>
               </form>
             </Form>
 
             <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Já tem uma conta? </span>
               <button
-                onClick={onSwitchToLogin}
-                className="text-primary font-medium hover:underline"
-                data-testid="link-login"
+                onClick={() => logout()}
+                className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground hover:underline"
+                data-testid="button-cancel-complete"
               >
-                Entrar
+                <LogOut className="w-3.5 h-3.5" />
+                Sair e usar outra conta
               </button>
             </div>
           </CardContent>

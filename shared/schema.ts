@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, varchar, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, varchar, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -35,7 +35,7 @@ export const people = pgTable("people", {
   document: text("document"),
   type: text("type", { enum: PERSON_TYPES }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [index("people_org_idx").on(table.organizationId)]);
+}, (table) => [index("people_org_idx").on(table.organizationId)]).enableRLS();
 
 export const intermediaries = pgTable("intermediaries", {
   id: serial("id").primaryKey(),
@@ -47,7 +47,7 @@ export const intermediaries = pgTable("intermediaries", {
   birthDate: timestamp("birth_date"),
   photoUrl: text("photo_url"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [index("intermediaries_org_idx").on(table.organizationId)]);
+}, (table) => [index("intermediaries_org_idx").on(table.organizationId)]).enableRLS();
 
 export const vehicles = pgTable(
   "vehicles",
@@ -85,7 +85,7 @@ export const vehicles = pgTable(
     uniqueIndex("vehicles_org_plate_unique").on(table.organizationId, table.plate),
     index("vehicles_org_status_idx").on(table.organizationId, table.status),
   ],
-);
+).enableRLS();
 
 export const expenses = pgTable("expenses", {
   id: serial("id").primaryKey(),
@@ -99,7 +99,7 @@ export const expenses = pgTable("expenses", {
 }, (table) => [
   index("expenses_org_idx").on(table.organizationId),
   index("expenses_vehicle_idx").on(table.vehicleId),
-]);
+]).enableRLS();
 
 export const STORE_EXPENSE_CATEGORIES = [
   "Aluguel",
@@ -124,7 +124,7 @@ export const vehicleImages = pgTable("vehicle_images", {
   fileName: text("file_name").notNull(),
   filePath: text("file_path").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [index("vehicle_images_vehicle_idx").on(table.vehicleId)]);
+}, (table) => [index("vehicle_images_vehicle_idx").on(table.vehicleId)]).enableRLS();
 
 export const storeExpenses = pgTable("store_expenses", {
   id: serial("id").primaryKey(),
@@ -135,7 +135,7 @@ export const storeExpenses = pgTable("store_expenses", {
   category: text("category", { enum: STORE_EXPENSE_CATEGORIES }).notNull(),
   amount: integer("amount").notNull(),
   date: timestamp("date").defaultNow(),
-}, (table) => [index("store_expenses_org_date_idx").on(table.organizationId, table.date)]);
+}, (table) => [index("store_expenses_org_date_idx").on(table.organizationId, table.date)]).enableRLS();
 
 export const peopleRelations = relations(people, ({ many }) => ({
   vehicles: many(vehicles),
@@ -204,6 +204,61 @@ export type VehicleWithDetails = Vehicle & {
   intermediary?: Intermediary | null;
 };
 
+/** Configurações da plataforma (chave/valor), editáveis pelo super admin. */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}).enableRLS();
+
+/** Cupons de desconto do SaaS (aplicados na assinatura, geridos pelo super admin). */
+/** Durações promocionais oferecidas na criação de um cupom (em ciclos mensais). */
+export const COUPON_DURATIONS = [1, 3, 6] as const;
+
+export const coupons = pgTable("coupons", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  /** Desconto percentual (1 a 100) aplicado ao valor mensal da assinatura. */
+  percentOff: integer("percent_off").notNull(),
+  /**
+   * Por quantas mensalidades o desconto vale: 1 = só a primeira, 3, 6...
+   * `null` = permanente (vale por toda a assinatura).
+   */
+  durationCycles: integer("duration_cycles"),
+  maxUses: integer("max_uses"), // null = ilimitado
+  /** Resgates confirmados (incrementado no 1º pagamento, não no checkout). */
+  usedCount: integer("used_count").default(0).notNull(),
+  expiresAt: timestamp("expires_at"), // null = sem validade
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}).enableRLS();
+
+export type Coupon = typeof coupons.$inferSelect;
+
+/** Texto curto da duração, usado na UI e nas descrições enviadas ao Asaas. */
+export function couponDurationLabel(durationCycles: number | null): string {
+  if (durationCycles == null) return "permanente";
+  if (durationCycles === 1) return "1ª mensalidade";
+  return `${durationCycles} meses`;
+}
+
+export const SUPPORT_CATEGORIES = ["Suporte", "Dicas", "Erros", "Outros"] as const;
+
+/** Chamados de suporte — o id serial é o número do atendimento (001, 002...). */
+export const supportTickets = pgTable("support_tickets", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  userId: varchar("user_id", { length: 36 }).references(() => users.id, { onDelete: "set null" }),
+  category: text("category", { enum: SUPPORT_CATEGORIES }).notNull(),
+  message: text("message").notNull(),
+  emailSent: boolean("email_sent").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("support_tickets_org_idx").on(table.organizationId)]).enableRLS();
+
+export type SupportTicket = typeof supportTickets.$inferSelect;
+
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id")
@@ -215,7 +270,7 @@ export const auditLogs = pgTable("audit_logs", {
   entityId: integer("entity_id"),
   details: text("details"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [index("audit_logs_org_created_idx").on(table.organizationId, table.createdAt)]);
+}, (table) => [index("audit_logs_org_created_idx").on(table.organizationId, table.createdAt)]).enableRLS();
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   user: one(users, {

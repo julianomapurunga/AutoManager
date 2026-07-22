@@ -14,6 +14,9 @@ declare global {
     interface Request {
       user?: User;
       organization?: Organization;
+      /** Preenchidos por requireSupabaseUser: usuário autenticado que ainda pode não ter perfil. */
+      authUserId?: string;
+      authEmail?: string | null;
     }
   }
 }
@@ -40,24 +43,29 @@ async function verifySupabaseToken(token: string): Promise<JWTPayload> {
   return payload;
 }
 
+/** E-mail único com acesso ao painel do dono do SaaS (definido no .env). */
+const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL || "").trim().toLowerCase();
+
+export function isSuperAdminEmail(email: unknown): boolean {
+  return !!SUPER_ADMIN_EMAIL && String(email ?? "").trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+}
+
+/** Valida o Bearer token e devolve o payload do JWT (ou null). */
+async function verifyBearer(req: Request): Promise<JWTPayload | null> {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) return null;
+  try {
+    return await verifySupabaseToken(header.slice("Bearer ".length));
+  } catch {
+    return null;
+  }
+}
+
 /** Extrai e valida o JWT do Supabase, carregando o perfil e a organização. */
 export const requireAuth: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const header = req.headers.authorization;
-    if (!header?.startsWith("Bearer ")) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const token = header.slice("Bearer ".length);
-    let payload: JWTPayload;
-    try {
-      payload = await verifySupabaseToken(token);
-    } catch {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const userId = payload.sub;
-    if (!userId) {
+    const payload = await verifyBearer(req);
+    if (!payload?.sub) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -65,9 +73,13 @@ export const requireAuth: RequestHandler = async (req: Request, res: Response, n
       .select({ user: users, organization: organizations })
       .from(users)
       .innerJoin(organizations, eq(users.organizationId, organizations.id))
-      .where(eq(users.id, userId));
+      .where(eq(users.id, payload.sub));
 
     if (!row) {
+      // Conta do super admin: existe no Supabase Auth mas não pertence a loja alguma
+      if (isSuperAdminEmail(payload.email)) {
+        return res.status(403).json({ message: "Conta administrativa", code: "SUPER_ADMIN" });
+      }
       return res.status(403).json({
         message: "Sua conta não está vinculada a nenhuma loja. Conclua o cadastro.",
         code: "NO_PROFILE",
@@ -81,6 +93,33 @@ export const requireAuth: RequestHandler = async (req: Request, res: Response, n
     console.error("Auth error:", err);
     res.status(500).json({ message: "Erro de autenticação" });
   }
+};
+
+/**
+ * Valida o JWT do Supabase e expõe o id/e-mail do usuário, SEM exigir perfil.
+ * Usado no fluxo de login social: o usuário já existe no Supabase Auth (via Google)
+ * mas ainda não tem loja/perfil — ele precisa concluir o cadastro.
+ */
+export const requireSupabaseUser: RequestHandler = async (req, res, next) => {
+  const payload = await verifyBearer(req);
+  if (!payload?.sub) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  req.authUserId = payload.sub;
+  req.authEmail = typeof payload.email === "string" ? payload.email : null;
+  next();
+};
+
+/** Acesso exclusivo do dono do SaaS (SUPER_ADMIN_EMAIL). Não consulta tabelas de loja. */
+export const requireSuperAdmin: RequestHandler = async (req, res, next) => {
+  const payload = await verifyBearer(req);
+  if (!payload?.sub) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  if (!isSuperAdminEmail(payload.email)) {
+    return res.status(403).json({ message: "Acesso restrito" });
+  }
+  next();
 };
 
 /** Bloqueia o acesso quando o teste grátis expirou ou a assinatura está inativa. */

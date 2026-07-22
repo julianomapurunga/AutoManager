@@ -2,13 +2,16 @@ import type { Express } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { z } from "zod";
 import { eq, and, desc, ne } from "drizzle-orm";
 import { db } from "../db";
 import { supabaseAdmin } from "../supabase";
-import { requireAuth, guardAdmin } from "../auth";
+import { requireAuth, requireSupabaseUser, guardAdmin, isSuperAdminEmail } from "../auth";
 import { rateLimit, isRealImage } from "../security";
-import { users, signupSchema, createUserSchema, updateUserSchema } from "@shared/models/auth";
+import {
+  users, signupSchema, completeProfileSchema, createUserSchema, updateUserSchema,
+} from "@shared/models/auth";
 import { organizations, PLANS, TRIAL_DAYS, hasActiveSubscription } from "@shared/models/tenancy";
 
 const profileUploadsDir = path.join(process.cwd(), "uploads", "profiles");
@@ -20,8 +23,10 @@ const profileUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, profileUploadsDir),
     filename: (_req, file, cb) => {
+      // Nome aleatório: /uploads é servido publicamente, então um nome previsível
+      // (ex.: timestamp) permitiria adivinhar a foto de outro usuário por força bruta.
       const ext = path.extname(file.originalname);
-      cb(null, `profile-${Date.now()}${ext}`);
+      cb(null, `${crypto.randomBytes(16).toString("hex")}${ext}`);
     },
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -57,6 +62,11 @@ export function registerAuthRoutes(app: Express): void {
     let createdAuthUserId: string | null = null;
     try {
       const input = signupSchema.parse(req.body);
+
+      // O e-mail administrativo do SaaS não pode ser usado para cadastrar loja
+      if (isSuperAdminEmail(input.email)) {
+        return res.status(400).json({ message: "Este e-mail não pode ser utilizado", field: "email" });
+      }
 
       const { data: created, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: input.email,
@@ -119,6 +129,78 @@ export function registerAuthRoutes(app: Express): void {
     }
   });
 
+  /**
+   * Conclui o cadastro de quem entrou via Google (login social).
+   * O usuário já está autenticado no Supabase Auth (e-mail confirmado pelo Google),
+   * mas ainda não tem loja nem perfil. Aqui criamos a organização + o perfil de
+   * administrador, reaproveitando o id e o e-mail vindos do próprio JWT — nunca do body.
+   */
+  const completeProfileLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: "Muitas tentativas. Tente novamente em 15 minutos.",
+  });
+
+  app.post("/api/auth/complete-profile", completeProfileLimiter, requireSupabaseUser, async (req, res) => {
+    try {
+      const authUserId = req.authUserId!;
+      const email = req.authEmail;
+
+      if (!email) {
+        return res.status(400).json({ message: "Sua conta não tem e-mail associado." });
+      }
+      if (isSuperAdminEmail(email)) {
+        return res.status(400).json({ message: "Este e-mail não pode ser utilizado para cadastrar loja" });
+      }
+
+      // Já tem perfil? Não pode criar uma segunda loja com a mesma conta.
+      const [existing] = await db.select().from(users).where(eq(users.id, authUserId));
+      if (existing) {
+        return res.status(409).json({ message: "Sua conta já possui um cadastro.", code: "PROFILE_EXISTS" });
+      }
+
+      const input = completeProfileSchema.parse(req.body);
+
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
+
+      const result = await db.transaction(async (tx) => {
+        const [org] = await tx
+          .insert(organizations)
+          .values({
+            name: input.organizationName,
+            plan: "trial",
+            subscriptionStatus: "trialing",
+            trialEndsAt,
+          })
+          .returning();
+
+        const [profile] = await tx
+          .insert(users)
+          .values({
+            id: authUserId, // UUID do usuário já criado pelo Supabase via Google
+            organizationId: org.id,
+            email,
+            firstName: input.firstName,
+            lastName: input.lastName ?? null,
+            phone: input.phone,
+            cpf: input.cpf,
+            gender: input.gender,
+            role: "Administrador",
+          })
+          .returning();
+
+        return { org, profile };
+      });
+
+      res.status(201).json({ organization: result.org, user: result.profile });
+    } catch (err) {
+      if (err instanceof z.ZodError) return zodError(err, res);
+      console.error("Complete profile error:", err);
+      res.status(500).json({ message: "Erro ao concluir cadastro" });
+    }
+  });
+
   /** Perfil do usuário logado + dados da organização/plano. */
   app.get("/api/auth/user", requireAuth, async (req, res) => {
     const org = req.organization!;
@@ -139,10 +221,17 @@ export function registerAuthRoutes(app: Express): void {
   app.put("/api/auth/profile", requireAuth, profileUpload.single("profileImage"), async (req, res) => {
     try {
       const user = req.user!;
-      const updateData: Record<string, unknown> = {};
+      const profileInput = z.object({
+        firstName: z.string().min(2, "Nome é obrigatório").max(100).optional(),
+        lastName: z.string().max(100).nullable().optional(),
+      }).parse({
+        firstName: req.body.firstName || undefined,
+        lastName: req.body.lastName !== undefined ? (req.body.lastName || null) : undefined,
+      });
 
-      if (req.body.firstName) updateData.firstName = req.body.firstName;
-      if (req.body.lastName !== undefined) updateData.lastName = req.body.lastName || null;
+      const updateData: Record<string, unknown> = {};
+      if (profileInput.firstName) updateData.firstName = profileInput.firstName;
+      if (profileInput.lastName !== undefined) updateData.lastName = profileInput.lastName;
 
       const oldImageUrl = user.profileImageUrl;
       if (req.file) {
@@ -171,6 +260,7 @@ export function registerAuthRoutes(app: Express): void {
 
       res.json(updated);
     } catch (err) {
+      if (err instanceof z.ZodError) return zodError(err, res);
       console.error("Error updating profile:", err);
       res.status(500).json({ message: "Erro ao atualizar perfil" });
     }

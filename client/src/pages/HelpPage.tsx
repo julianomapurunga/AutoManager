@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +13,72 @@ import {
 } from "@/components/ui/accordion";
 import {
   HelpCircle, Search, LayoutDashboard, Car, DollarSign, Users,
-  Receipt, BarChart3, Globe, Settings, UserCog,
+  Receipt, BarChart3, Globe, Settings, UserCog, LifeBuoy, ArrowRight,
+  Ticket, MailCheck, MailWarning,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface SupportTicketItem {
+  id: number;
+  ticketNumber: string;
+  category: string;
+  message: string;
+  emailSent: boolean;
+  createdAt: string | null;
+  openedBy: string;
+}
+
+/** Lista dos chamados de suporte já abertos pela loja. */
+function TicketList() {
+  const { data: tickets, isLoading } = useQuery<SupportTicketItem[]>({
+    queryKey: ["/api/support/tickets"],
+  });
+
+  if (isLoading) {
+    return <Skeleton className="h-24 w-full" />;
+  }
+
+  if (!tickets || tickets.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground text-center py-6">
+        Nenhum chamado aberto ainda.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {tickets.map((t) => (
+        <div
+          key={t.id}
+          className="flex items-start justify-between gap-4 p-3.5 rounded-md border border-border/60 flex-wrap"
+          data-testid={`row-ticket-${t.id}`}
+        >
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono font-bold text-primary">#{t.ticketNumber}</span>
+              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">{t.category}</Badge>
+              {t.emailSent ? (
+                <span className="flex items-center gap-1 text-xs text-emerald-600">
+                  <MailCheck className="w-3.5 h-3.5" /> Enviado
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-amber-600">
+                  <MailWarning className="w-3.5 h-3.5" /> Envio manual
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground line-clamp-2">{t.message}</p>
+          </div>
+          <div className="text-right text-xs text-muted-foreground shrink-0">
+            <p>{t.openedBy}</p>
+            <p>{t.createdAt ? new Date(t.createdAt).toLocaleString("pt-BR") : "—"}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface HelpTopic {
   q: string;
@@ -403,6 +470,7 @@ const modules: HelpModule[] = [
 ];
 
 export default function HelpPage() {
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const term = search.trim().toLowerCase();
 
@@ -483,9 +551,44 @@ export default function HelpPage() {
         ))}
       </div>
 
-      <p className="text-xs text-muted-foreground text-center pb-4">
-        Não encontrou o que procurava? Fale com o administrador da sua loja ou com o suporte do VEHIRO.
-      </p>
+      {/* Suporte */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="p-6 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4 min-w-0">
+            <span className="p-3 rounded-full bg-primary/10 shrink-0">
+              <LifeBuoy className="w-6 h-6 text-primary" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="font-semibold font-display">Não encontrou o que procurava?</h3>
+              <p className="text-sm text-muted-foreground">
+                Abra um chamado com a nossa equipe — respondemos no seu e-mail.
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => navigate("/support")} data-testid="button-open-support">
+            Suporte
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Chamados já abertos */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-3 text-lg">
+            <span className="p-2 rounded-lg bg-primary/10">
+              <Ticket className="w-5 h-5 text-primary" />
+            </span>
+            Chamados abertos
+          </CardTitle>
+          <p className="text-sm text-muted-foreground ml-12">
+            Histórico de solicitações de suporte da sua loja.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <TicketList />
+        </CardContent>
+      </Card>
     </div>
   );
 }

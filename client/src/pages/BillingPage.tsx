@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   CreditCard, CheckCircle2, Infinity as InfinityIcon, ExternalLink,
@@ -41,6 +43,7 @@ export default function BillingPage({ blocked = false }: { blocked?: boolean }) 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState("");
 
   const isAdmin = user?.role === "Administrador";
 
@@ -50,7 +53,10 @@ export default function BillingPage({ blocked = false }: { blocked?: boolean }) 
 
   const checkoutMutation = useMutation({
     mutationFn: async (plan: string) => {
-      const res = await apiRequest("POST", "/api/billing/checkout", { plan });
+      const res = await apiRequest("POST", "/api/billing/checkout", {
+        plan,
+        ...(couponCode.trim() ? { couponCode: couponCode.trim().toUpperCase() } : {}),
+      });
       return res.json() as Promise<{ invoiceUrl: string | null; message: string }>;
     },
     onSuccess: (result) => {
@@ -188,6 +194,22 @@ export default function BillingPage({ blocked = false }: { blocked?: boolean }) 
             Os pagamentos ainda não foram configurados no servidor (ASAAS_API_KEY ausente).
           </CardContent>
         </Card>
+      )}
+
+      {/* Cupom de desconto */}
+      {isAdmin && data.configured && (
+        <div className="flex items-end gap-3 max-w-sm">
+          <div className="space-y-1.5 flex-1">
+            <Label className="text-xs">Cupom de desconto (opcional)</Label>
+            <Input
+              placeholder="Ex.: VEHIRO20"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
+              maxLength={30}
+              data-testid="input-coupon"
+            />
+          </div>
+        </div>
       )}
 
       {/* Planos */}

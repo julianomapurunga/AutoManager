@@ -12,6 +12,7 @@ const allowlist = [
   "express",
   "jose",
   "multer",
+  "nodemailer",
   "pg",
   "stripe",
   "zod",

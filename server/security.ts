@@ -45,11 +45,45 @@ export function rateLimit(options: { windowMs: number; max: number; message?: st
 
 // ─── Headers de segurança ────────────────────────────────────────────────────
 
+const isProd = process.env.NODE_ENV === "production";
+
+/**
+ * Content-Security-Policy de produção. Restringe de onde scripts, estilos,
+ * imagens e conexões podem vir — a principal defesa contra XSS (que, com o JWT
+ * do Supabase no navegador, viraria roubo de sessão).
+ *
+ * Aplicada só em produção: em dev o Vite injeta scripts inline e usa WebSocket
+ * de HMR, que uma CSP estrita quebraria. As origens do Supabase são liberadas
+ * em connect-src (auth/refresh de token e realtime via wss).
+ */
+const CSP_PROD = [
+  "default-src 'self'",
+  "script-src 'self'",
+  // 'unsafe-inline' em estilos: bibliotecas de UI injetam style inline e o
+  // index.css importa a fonte do Google Fonts.
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  "img-src 'self' data: blob: https://*.supabase.co",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join("; ");
+
 export const securityHeaders: RequestHandler = (_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+
+  if (isProd) {
+    res.setHeader("Content-Security-Policy", CSP_PROD);
+    // Força HTTPS por 1 ano. Só em produção (atrás de TLS); em localhost isso
+    // prenderia o navegador a https e quebraria o dev.
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+
   next();
 };
 

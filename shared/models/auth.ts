@@ -6,6 +6,13 @@ import { isValidCpf } from "../cpf";
 
 const cpfField = z.string().min(11, "CPF inválido").refine(isValidCpf, "CPF inválido: confira os dígitos");
 
+/**
+ * Senha ao DEFINIR uma nova (cadastro, criação de equipe, troca de senha).
+ * Mínimo 8 caracteres. Não usar no login: lá aceitamos senhas já existentes,
+ * que podem ser mais curtas, para não travar quem se cadastrou antes.
+ */
+const newPasswordField = z.string().min(8, "Senha deve ter no mínimo 8 caracteres");
+
 export const USER_ROLES = ["Administrador", "Gerente", "Vendedor", "Financeiro"] as const;
 export const USER_GENDERS = ["Masculino", "Feminino", "Outro"] as const;
 
@@ -33,7 +40,7 @@ export const users = pgTable(
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => [uniqueIndex("users_org_cpf_unique").on(table.organizationId, table.cpf)],
-);
+).enableRLS();
 
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -52,7 +59,7 @@ export const loginSchema = z.object({
 export const signupSchema = z.object({
   organizationName: z.string().min(2, "Nome da loja é obrigatório"),
   email: z.string().email("E-mail inválido"),
-  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  password: newPasswordField,
   firstName: z.string().min(2, "Nome é obrigatório"),
   lastName: z.string().optional().nullable(),
   phone: z.string().min(10, "Telefone inválido"),
@@ -63,7 +70,7 @@ export const signupSchema = z.object({
 /** Criação de usuário da equipe (feita por um administrador). */
 export const createUserSchema = z.object({
   email: z.string().email("E-mail inválido"),
-  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  password: newPasswordField,
   firstName: z.string().min(2, "Nome é obrigatório"),
   lastName: z.string().optional().nullable(),
   phone: z.string().min(10, "Telefone inválido"),
@@ -79,12 +86,27 @@ export const updateUserSchema = z.object({
   cpf: cpfField.optional(),
   gender: z.enum(USER_GENDERS).optional(),
   role: z.enum(USER_ROLES).optional(),
-  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres").optional(),
+  password: newPasswordField.optional(),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = typeof users.$inferInsert;
 export type UpdateUser = z.infer<typeof updateUserSchema>;
+/**
+ * Conclusão de cadastro para quem entrou via Google (login social).
+ * O e-mail e a senha ficam a cargo do Supabase/Google, então aqui só
+ * coletamos os dados de negócio que o Google não fornece (loja, CPF, etc.).
+ */
+export const completeProfileSchema = z.object({
+  organizationName: z.string().min(2, "Nome da loja é obrigatório"),
+  firstName: z.string().min(2, "Nome é obrigatório"),
+  lastName: z.string().optional().nullable(),
+  phone: z.string().min(10, "Telefone inválido"),
+  cpf: cpfField,
+  gender: z.enum(USER_GENDERS, { required_error: "Sexo é obrigatório" }),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
+export type CompleteProfileInput = z.infer<typeof completeProfileSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;

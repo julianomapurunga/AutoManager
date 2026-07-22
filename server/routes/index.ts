@@ -9,6 +9,9 @@ import { validateUploadedImages, isRealImage } from "../security";
 import { registerAuthRoutes } from "./auth";
 import { registerBillingRoutes } from "./billing";
 import { registerCatalogRoutes } from "./catalog";
+import { registerSupportRoutes } from "./support";
+import { registerAdminRoutes } from "./admin";
+import { loadSettings } from "../settings";
 import { PLANS, type OrgPlan } from "@shared/models/tenancy";
 import multer from "multer";
 import path from "path";
@@ -72,9 +75,20 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  // Healthcheck para o orquestrador (Docker/compose): liveness sem autenticação
+  // nem acesso ao banco, para responder rápido mesmo sob carga.
+  app.get("/healthz", (_req, res) => {
+    res.json({ status: "ok", uptime: process.uptime() });
+  });
+
+  // Configurações da plataforma (Asaas etc.) — banco com fallback no .env
+  await loadSettings();
+
   registerAuthRoutes(app);
   registerBillingRoutes(app);
   registerCatalogRoutes(app);
+  registerSupportRoutes(app);
+  registerAdminRoutes(app);
 
   // Log de auditoria
   app.get("/api/audit-logs", guardAdmin(), async (req, res) => {
@@ -521,7 +535,7 @@ export async function registerRoutes(
     try {
       if (!validateVehicleType(req.params.vehicleType, res)) return;
       const { vehicleType, brandId } = req.params;
-      const response = await fetch(`${FIPE_BASE}/${vehicleType}/brands/${brandId}/models`);
+      const response = await fetch(`${FIPE_BASE}/${vehicleType}/brands/${encodeURIComponent(brandId)}/models`);
       const data = await response.json();
       res.json(data);
     } catch (e) {
@@ -533,7 +547,7 @@ export async function registerRoutes(
     try {
       if (!validateVehicleType(req.params.vehicleType, res)) return;
       const { vehicleType, brandId, modelId } = req.params;
-      const response = await fetch(`${FIPE_BASE}/${vehicleType}/brands/${brandId}/models/${modelId}/years`);
+      const response = await fetch(`${FIPE_BASE}/${vehicleType}/brands/${encodeURIComponent(brandId)}/models/${encodeURIComponent(modelId)}/years`);
       const data = await response.json();
       res.json(data);
     } catch (e) {
@@ -545,7 +559,7 @@ export async function registerRoutes(
     try {
       if (!validateVehicleType(req.params.vehicleType, res)) return;
       const { vehicleType, brandId, modelId, yearId } = req.params;
-      const response = await fetch(`${FIPE_BASE}/${vehicleType}/brands/${brandId}/models/${modelId}/years/${yearId}`);
+      const response = await fetch(`${FIPE_BASE}/${vehicleType}/brands/${encodeURIComponent(brandId)}/models/${encodeURIComponent(modelId)}/years/${encodeURIComponent(yearId)}`);
       const data = await response.json();
       res.json(data);
     } catch (e) {
@@ -557,7 +571,7 @@ export async function registerRoutes(
     try {
       if (!validateVehicleType(req.params.vehicleType, res)) return;
       const { vehicleType, fipeCode, yearId } = req.params;
-      const response = await fetch(`${FIPE_BASE}/${vehicleType}/${fipeCode}/years/${yearId}/history`);
+      const response = await fetch(`${FIPE_BASE}/${vehicleType}/${encodeURIComponent(fipeCode)}/years/${encodeURIComponent(yearId)}/history`);
       const data = await response.json();
       if (!response.ok || !Array.isArray(data)) {
         res.json([]);

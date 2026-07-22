@@ -588,7 +588,7 @@ function CreateUserDialog({
                 <FormLabel>Senha *</FormLabel>
                 <FormControl>
                   <div className="relative">
-                    <Input type={showPassword ? "text" : "password"} placeholder="Mínimo 6 caracteres" {...field} data-testid="input-create-password" />
+                    <Input type={showPassword ? "text" : "password"} placeholder="Mínimo 8 caracteres" {...field} data-testid="input-create-password" />
                     <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0" onClick={() => setShowPassword(!showPassword)}>
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </Button>
@@ -679,7 +679,7 @@ function EditUserDialog({
     cpf: z.string().min(11, "CPF inválido").refine(isValidCpf, "CPF inválido: confira os dígitos"),
     gender: z.enum(USER_GENDERS),
     role: z.enum(USER_ROLES),
-    password: z.string().optional().refine((val) => !val || val.length >= 6, { message: "Senha deve ter no mínimo 6 caracteres" }),
+    password: z.string().optional().refine((val) => !val || val.length >= 8, { message: "Senha deve ter no mínimo 8 caracteres" }),
   });
 
   const form = useForm<UpdateUserForm>({

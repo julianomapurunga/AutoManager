@@ -24,12 +24,15 @@ import ChangelogPage from "@/pages/ChangelogPage";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
+import CompleteProfilePage from "@/pages/CompleteProfilePage";
 import PublicCatalog from "@/pages/PublicCatalog";
 import CatalogSettings from "@/pages/CatalogSettings";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import HelpPage from "@/pages/HelpPage";
+import SupportPage from "@/pages/SupportPage";
 import BillingPage from "@/pages/BillingPage";
+import AdminPage from "@/pages/AdminPage";
 import NotFound from "@/pages/not-found";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -125,6 +128,7 @@ function AuthenticatedRouter() {
               <Route path="/fipe" component={FipeRoute} />
               <Route path="/catalog" component={CatalogRoute} />
               <Route path="/help" component={HelpPage} />
+              <Route path="/support" component={SupportPage} />
               <Route path="/billing" component={BillingPage} />
               <Route path="/profile" component={Profile} />
               <Route path="/settings">{() => <AdminRoute component={Settings} />}</Route>
@@ -183,7 +187,7 @@ function UnauthenticatedPages() {
 
 function AppContent() {
   const [location] = useLocation();
-  const { user, isLoading } = useAuth();
+  const { user, needsProfile, isLoading } = useAuth();
 
   // Catálogo público: acessível sem login
   if (location.startsWith("/loja/")) return <PublicCatalog />;
@@ -193,7 +197,15 @@ function AppContent() {
   if (location === "/redefinir-senha") return <ResetPasswordPage />;
 
   if (isLoading) return <LoadingScreen />;
+
+  // Entrou via Google mas ainda não tem loja/perfil: conclui o cadastro
+  if (needsProfile) return <CompleteProfilePage info={needsProfile} />;
+
   if (!user) return <UnauthenticatedPages />;
+
+  // Dono do SaaS: painel administrativo exclusivo, sem nada da interface de loja
+  if (user.isSuperAdmin) return <AdminPage />;
+
   return <AuthenticatedRouter />;
 }
 

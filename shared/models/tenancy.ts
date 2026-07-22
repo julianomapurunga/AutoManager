@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -66,13 +66,24 @@ export const organizations = pgTable("organizations", {
   asaasSubscriptionId: text("asaas_subscription_id"),
   /** Plano aguardando confirmação de pagamento no Asaas. */
   pendingPlan: text("pending_plan", { enum: ORG_PLANS }),
+  // Cupom promocional aplicado à assinatura Asaas atual.
+  // O Asaas não tem desconto por tempo limitado: a assinatura nasce com o valor
+  // promocional e nós restauramos o valor cheio via PUT quando os ciclos acabam.
+  /** Código do cupom em vigor; null quando não há promoção ativa. */
+  couponCode: text("coupon_code"),
+  /** Ciclos que o desconto cobre. null = permanente (nunca restaura o valor cheio). */
+  couponCyclesTotal: integer("coupon_cycles_total"),
+  /** Valor mensal cheio em centavos, restaurado no Asaas ao fim da promoção. */
+  couponFullValue: integer("coupon_full_value"),
+  /** Marca o resgate já contabilizado no usedCount — garante incremento único. */
+  couponRedeemedAt: timestamp("coupon_redeemed_at"),
   // Catálogo público (plano Profissional)
   catalogSlug: text("catalog_slug").unique(),
   catalogEnabled: boolean("catalog_enabled").default(false).notNull(),
   catalogDescription: text("catalog_description"),
   catalogWhatsapp: text("catalog_whatsapp"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}).enableRLS();
 
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({
   id: true,

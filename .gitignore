@@ -8,3 +8,9 @@ vite.config.ts.*
 .env.*
 !.env.example
 uploads/
+
+# Material gerado por outras ferramentas (kits de marca etc.) — não é do projeto
+output/
+
+# Config local de ferramenta (Claude Code)
+.claude/

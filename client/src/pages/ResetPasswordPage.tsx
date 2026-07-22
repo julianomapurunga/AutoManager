@@ -58,8 +58,8 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError("");
 
-    if (password.length < 6) {
-      setError("A senha deve ter no mínimo 6 caracteres");
+    if (password.length < 8) {
+      setError("A senha deve ter no mínimo 8 caracteres");
       return;
     }
     if (password !== confirm) {
@@ -162,7 +162,7 @@ export default function ResetPasswordPage() {
                   <div className="relative">
                     <Input
                       type={showPassword ? "text" : "password"}
-                      placeholder="Nova senha (mínimo 6 caracteres)"
+                      placeholder="Nova senha (mínimo 8 caracteres)"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       autoFocus

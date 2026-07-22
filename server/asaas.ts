@@ -8,11 +8,30 @@
  * Configurações da conta → Integrações → Chave de API
  */
 
-const ASAAS_API_URL = process.env.ASAAS_API_URL || "https://api-sandbox.asaas.com/v3";
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
+import { getSetting } from "./settings";
+
+export type AsaasEnv = "sandbox" | "production";
+
+const URLS: Record<AsaasEnv, string> = {
+  sandbox: process.env.ASAAS_API_URL || "https://api-sandbox.asaas.com/v3",
+  production: "https://api.asaas.com/v3",
+};
+
+/**
+ * Configuração dinâmica: o painel do super admin grava no banco
+ * (asaas_env, asaas_api_key_sandbox, asaas_api_key_production);
+ * o .env é o fallback quando nada foi definido no painel.
+ */
+export function getAsaasConfig(): { env: AsaasEnv; apiKey: string | undefined; baseUrl: string } {
+  const env = (getSetting("asaas_env") as AsaasEnv) || "sandbox";
+  const dbKey = getSetting(`asaas_api_key_${env}`);
+  // fallback do .env vale apenas para o sandbox (chaves são diferentes por ambiente)
+  const apiKey = dbKey || (env === "sandbox" ? process.env.ASAAS_API_KEY : undefined);
+  return { env, apiKey, baseUrl: URLS[env] };
+}
 
 export function isAsaasConfigured(): boolean {
-  return !!ASAAS_API_KEY;
+  return !!getAsaasConfig().apiKey;
 }
 
 class AsaasError extends Error {
@@ -26,16 +45,17 @@ class AsaasError extends Error {
 }
 
 async function asaasFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  if (!ASAAS_API_KEY) {
-    throw new Error("ASAAS_API_KEY não está definido no .env");
+  const { apiKey, baseUrl } = getAsaasConfig();
+  if (!apiKey) {
+    throw new Error("Chave de API do Asaas não configurada (painel Admin > Configurações ou .env)");
   }
 
-  const res = await fetch(`${ASAAS_API_URL}${path}`, {
+  const res = await fetch(`${baseUrl}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
       "User-Agent": "VEHIRO",
-      access_token: ASAAS_API_KEY,
+      access_token: apiKey,
       ...(options.headers ?? {}),
     },
   });
@@ -106,6 +126,24 @@ export async function createSubscription(data: {
   });
 }
 
+/**
+ * Atualiza uma assinatura existente.
+ *
+ * `updatePendingPayments: true` é essencial ao trocar o `value`: o Asaas gera a
+ * próxima cobrança antes do vencimento, então a cobrança seguinte já pode existir
+ * com o valor antigo — e por padrão "cobranças já criadas permanecem inalteradas".
+ * Sem isso, o cliente ganharia um ciclo extra de desconto.
+ */
+export async function updateSubscription(
+  id: string,
+  data: { value?: number; description?: string; updatePendingPayments?: boolean },
+): Promise<AsaasSubscription> {
+  return asaasFetch<AsaasSubscription>(`/subscriptions/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function cancelSubscription(id: string): Promise<void> {
   await asaasFetch(`/subscriptions/${id}`, { method: "DELETE" });
 }
@@ -114,4 +152,25 @@ export async function cancelSubscription(id: string): Promise<void> {
 export async function getSubscriptionPayments(id: string): Promise<AsaasPayment[]> {
   const res = await asaasFetch<{ data: AsaasPayment[] }>(`/subscriptions/${id}/payments`);
   return res.data ?? [];
+}
+
+export interface AsaasPaymentDetail extends AsaasPayment {
+  customer: string;
+  dueDate: string;
+  paymentDate?: string | null;
+  billingType: string;
+  description?: string;
+  /** Valor líquido após as taxas do Asaas (disponível em cobranças pagas). */
+  netValue?: number | null;
+}
+
+/** Últimas cobranças da conta (painel do super admin). */
+export async function listRecentPayments(limit = 30): Promise<AsaasPaymentDetail[]> {
+  const res = await asaasFetch<{ data: AsaasPaymentDetail[] }>(`/payments?limit=${limit}&offset=0`);
+  return res.data ?? [];
+}
+
+/** Testa a conexão/chave atual (lista 1 cliente). */
+export async function pingAsaas(): Promise<void> {
+  await asaasFetch("/customers?limit=1");
 }

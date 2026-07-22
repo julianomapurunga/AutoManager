@@ -1,0 +1,35 @@
+# ⚠️ Segredos — NUNCA copiar para dentro da imagem
+.env
+.env.*
+!.env.example
+
+# Dependências e build (reinstalados/gerados dentro da imagem)
+node_modules
+dist
+output
+
+# Uploads locais (devem ir para volume/storage externo, não para a imagem)
+uploads
+
+# Git e metadados
+.git
+.gitignore
+.github
+
+# Ferramentas de dev / editor
+.claude
+.vscode
+.idea
+*.log
+npm-debug.log*
+
+# Docker (evita recursão)
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Docs, SQL e testes que não precisam no runtime
+docs
+sql
+*.md
+*.sql

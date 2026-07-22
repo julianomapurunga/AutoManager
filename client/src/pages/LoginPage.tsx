@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema } from "@shared/models/auth";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 import { z } from "zod";
 import { useState } from "react";
 import {
@@ -164,6 +165,17 @@ export default function LoginPage({ onBackToLanding, onGoToRegister, onForgotPas
                 </Button>
               </form>
             </Form>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">ou</span>
+              </div>
+            </div>
+
+            <GoogleSignInButton label="Entrar com Google" />
 
             {onGoToRegister && (
               <div className="mt-6 text-center text-sm">
