@@ -60,7 +60,12 @@ const uploadProfile = multer({ storage: profileStorage, limits: { fileSize: 5 * 
 
 /** Contexto do tenant extraído do usuário autenticado. */
 function ctx(req: express.Request): TenantCtx {
-  return { organizationId: req.user!.organizationId, userId: req.user!.id };
+  return {
+    organizationId: req.user!.organizationId,
+    userId: req.user!.id,
+    // Marca a auditoria quando um super admin está agindo dentro da loja.
+    impersonatorEmail: req.isImpersonating ? req.impersonatorEmail : undefined,
+  };
 }
 
 function zodError(err: z.ZodError, res: express.Response) {

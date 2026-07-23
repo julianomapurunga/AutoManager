@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -18,8 +17,9 @@ import { couponDurationLabel } from "@shared/schema";
 import {
   ShieldCheck, LogOut, Store, Users, Car, LifeBuoy, CreditCard,
   TicketPercent, TrendingUp, Plus, Ban, CheckCircle2, Clock3, XCircle,
-  Settings2, FlaskConical, Rocket, PlugZap, Trash2,
+  Settings2, FlaskConical, Rocket, PlugZap, Trash2, LogIn,
 } from "lucide-react";
+import { setImpersonateOrgId } from "@/lib/impersonation";
 
 function brl(cents: number) {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -104,6 +104,26 @@ function StatusBadge({ status }: { status: string }) {
 
 function OrgsTab() {
   const { data, isLoading } = useQuery<OrgRow[]>({ queryKey: ["/api/admin/organizations"] });
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [entering, setEntering] = useState<number | null>(null);
+
+  // Entra na loja como Administrador (impersonation): registra no servidor,
+  // liga o cabeçalho e limpa o cache — o app recarrega já na interface da loja.
+  const enterStore = async (o: OrgRow) => {
+    setEntering(o.id);
+    try {
+      await apiRequest("POST", `/api/admin/impersonate/${o.id}`);
+      setImpersonateOrgId(o.id);
+      queryClient.clear();
+    } catch (err: any) {
+      let msg = "Não foi possível acessar a loja";
+      try { msg = JSON.parse((err.message || "").split(": ").slice(1).join(": ")).message || msg; } catch {}
+      toast({ title: msg, variant: "destructive" });
+      setEntering(null);
+    }
+  };
+
   if (isLoading) return <Skeleton className="h-48 w-full" />;
   if (!data?.length) return <p className="text-muted-foreground text-center py-8">Nenhuma loja cadastrada.</p>;
 
@@ -124,6 +144,16 @@ function OrgsTab() {
               <span className="text-xs text-muted-foreground">
                 desde {o.createdAt ? new Date(o.createdAt).toLocaleDateString("pt-BR") : "—"}
               </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => enterStore(o)}
+                disabled={entering === o.id}
+                data-testid={`button-access-store-${o.id}`}
+              >
+                <LogIn className="w-3.5 h-3.5 mr-1" />
+                {entering === o.id ? "Entrando..." : "Acessar loja"}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -692,42 +722,80 @@ function SettingsTab() {
 
 // ─── Painel ──────────────────────────────────────────────────────────────────
 
+// Seções da central de controle (menu lateral esquerdo).
+const ADMIN_SECTIONS = [
+  { key: "overview", label: "Visão Geral", icon: TrendingUp, Component: OverviewTab },
+  { key: "orgs", label: "Lojas", icon: Store, Component: OrgsTab },
+  { key: "tickets", label: "Chamados", icon: LifeBuoy, Component: TicketsTab },
+  { key: "payments", label: "Pagamentos", icon: CreditCard, Component: PaymentsTab },
+  { key: "coupons", label: "Cupons", icon: TicketPercent, Component: CouponsTab },
+  { key: "settings", label: "Configurações", icon: Settings2, Component: SettingsTab },
+] as const;
+
 export default function AdminPage() {
   const { logout } = useAuth();
+  const [active, setActive] = useState<(typeof ADMIN_SECTIONS)[number]["key"]>("overview");
+  const current = ADMIN_SECTIONS.find((s) => s.key === active)!;
+  const ActiveComponent = current.Component;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-7 h-7 text-primary" />
-            <span className="text-xl font-bold font-display">VEHIRO <span className="text-primary">Admin</span></span>
-          </div>
-          <Button variant="ghost" onClick={() => logout()} data-testid="button-admin-logout">
-            <LogOut className="w-4 h-4 mr-2" />
-            Sair
-          </Button>
+    <div className="min-h-screen bg-background flex">
+      {/* Menu lateral — rail de ícones no mobile, completo no desktop */}
+      <aside className="w-16 md:w-60 shrink-0 border-r border-border bg-card flex flex-col sticky top-0 h-screen">
+        <div className="h-16 flex items-center gap-2 px-3 md:px-5 border-b border-border">
+          <ShieldCheck className="w-7 h-7 text-primary shrink-0" />
+          <span className="hidden md:inline text-lg font-bold font-display">
+            VEHIRO <span className="text-primary">Admin</span>
+          </span>
         </div>
-      </header>
+        <nav className="flex-1 p-2 md:p-3 space-y-1 overflow-y-auto">
+          {ADMIN_SECTIONS.map((s) => {
+            const isActive = s.key === active;
+            return (
+              <button
+                key={s.key}
+                onClick={() => setActive(s.key)}
+                data-testid={`nav-${s.key}`}
+                title={s.label}
+                className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <s.icon className="w-5 h-5 shrink-0" />
+                <span className="hidden md:inline">{s.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <div className="p-2 md:p-3 border-t border-border">
+          <button
+            onClick={() => logout()}
+            data-testid="button-admin-logout"
+            title="Sair"
+            className="w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <LogOut className="w-5 h-5 shrink-0" />
+            <span className="hidden md:inline">Sair</span>
+          </button>
+        </div>
+      </aside>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
-        <Tabs defaultValue="overview">
-          <TabsList className="mb-6 flex-wrap h-auto">
-            <TabsTrigger value="overview" data-testid="tab-overview">Visão Geral</TabsTrigger>
-            <TabsTrigger value="orgs" data-testid="tab-orgs">Lojas</TabsTrigger>
-            <TabsTrigger value="tickets" data-testid="tab-tickets">Chamados</TabsTrigger>
-            <TabsTrigger value="payments" data-testid="tab-payments">Pagamentos</TabsTrigger>
-            <TabsTrigger value="coupons" data-testid="tab-coupons">Cupons</TabsTrigger>
-            <TabsTrigger value="settings" data-testid="tab-settings">Configurações</TabsTrigger>
-          </TabsList>
-          <TabsContent value="overview"><OverviewTab /></TabsContent>
-          <TabsContent value="orgs"><OrgsTab /></TabsContent>
-          <TabsContent value="tickets"><TicketsTab /></TabsContent>
-          <TabsContent value="payments"><PaymentsTab /></TabsContent>
-          <TabsContent value="coupons"><CouponsTab /></TabsContent>
-          <TabsContent value="settings"><SettingsTab /></TabsContent>
-        </Tabs>
-      </main>
+      {/* Conteúdo */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <header className="h-16 border-b border-border bg-card flex items-center px-6 sticky top-0 z-40">
+          <h1 className="text-xl font-bold font-display flex items-center gap-2">
+            <current.icon className="w-5 h-5 text-primary" />
+            {current.label}
+          </h1>
+        </header>
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+          <div className="max-w-5xl mx-auto w-full">
+            <ActiveComponent />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "../db";
 import { requireSuperAdmin } from "../auth";
-import { supportTickets, coupons, vehicles } from "@shared/schema";
+import { supportTickets, coupons, vehicles, auditLogs } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { organizations, PLANS, hasActiveSubscription, type OrgPlan } from "@shared/models/tenancy";
 import { isAsaasConfigured, listRecentPayments, getAsaasConfig, pingAsaas } from "../asaas";
@@ -15,6 +15,48 @@ import { formatTicketNumber } from "./support";
  * uma conta do Supabase Auth que NÃO pertence a nenhuma loja.
  */
 export function registerAdminRoutes(app: Express): void {
+  /**
+   * Impersonation: registra que o super admin entrou/saiu de uma loja e valida
+   * que a loja pode ser acessada. O acesso em si é feito pelo cabeçalho
+   * X-Impersonate-Org (ver requireAuth) — estes endpoints são o gatilho auditado.
+   */
+  async function auditImpersonation(orgId: number, email: string, entering: boolean) {
+    await db.insert(auditLogs).values({
+      organizationId: orgId,
+      userId: null,
+      action: entering ? "Impersonation iniciada" : "Impersonation encerrada",
+      entityType: "organization",
+      entityId: orgId,
+      details: `[Super Admin: ${email}] ${entering ? "entrou na" : "saiu da"} loja pela central de controle`,
+    });
+  }
+
+  app.post("/api/admin/impersonate/:orgId", requireSuperAdmin, async (req, res) => {
+    const orgId = Number(req.params.orgId);
+    if (!Number.isInteger(orgId) || orgId <= 0) {
+      return res.status(400).json({ message: "Loja inválida" });
+    }
+    const [org] = await db.select().from(organizations).where(eq(organizations.id, orgId));
+    if (!org) return res.status(404).json({ message: "Loja não encontrada" });
+    const [adminUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.organizationId, orgId));
+    if (!adminUser) {
+      return res.status(422).json({ message: "Esta loja ainda não tem usuários para acessar." });
+    }
+    await auditImpersonation(orgId, req.authEmail || "?", true);
+    res.json({ organization: { id: org.id, name: org.name } });
+  });
+
+  app.post("/api/admin/impersonate/:orgId/exit", requireSuperAdmin, async (req, res) => {
+    const orgId = Number(req.params.orgId);
+    if (Number.isInteger(orgId) && orgId > 0) {
+      await auditImpersonation(orgId, req.authEmail || "?", false).catch(() => {});
+    }
+    res.json({ ok: true });
+  });
+
   /** Identidade do painel (usado pelo front para confirmar acesso). */
   app.get("/api/admin/me", requireSuperAdmin, (_req, res) => {
     res.json({ superAdmin: true });

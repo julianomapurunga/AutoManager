@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { createRemoteJWKSet, jwtVerify, decodeProtectedHeader, type JWTPayload } from "jose";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "./db";
 import { users, USER_ROLES, type User } from "@shared/models/auth";
 import { organizations, hasActiveSubscription, planIncludesFipe, type Organization } from "@shared/models/tenancy";
@@ -17,6 +17,10 @@ declare global {
       /** Preenchidos por requireSupabaseUser: usuário autenticado que ainda pode não ter perfil. */
       authUserId?: string;
       authEmail?: string | null;
+      /** true quando o super admin está acessando uma loja como Administrador (impersonation). */
+      isImpersonating?: boolean;
+      /** E-mail do super admin que está impersonando (para marcar a auditoria). */
+      impersonatorEmail?: string | null;
     }
   }
 }
@@ -69,6 +73,35 @@ export const requireAuth: RequestHandler = async (req: Request, res: Response, n
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    // ── Impersonation: super admin acessando uma loja como Administrador ──
+    // Só é destravada pelo JWT COMPROVADAMENTE do super admin. Sem esse token,
+    // o cabeçalho é ignorado — ninguém mais consegue usá-lo.
+    const impersonateHeader = req.headers["x-impersonate-org"];
+    if (impersonateHeader && isSuperAdminEmail(payload.email)) {
+      const orgId = Number(impersonateHeader);
+      if (!Number.isInteger(orgId) || orgId <= 0) {
+        return res.status(400).json({ message: "Loja inválida" });
+      }
+      const [org] = await db.select().from(organizations).where(eq(organizations.id, orgId));
+      if (!org) {
+        return res.status(404).json({ message: "Loja não encontrada" });
+      }
+      // Assume o contexto do Administrador real da loja (id válido para FKs/auditoria).
+      const [adminUser] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.organizationId, orgId), eq(users.role, "Administrador")))
+        .limit(1);
+      if (!adminUser) {
+        return res.status(404).json({ message: "Loja sem administrador para acessar" });
+      }
+      req.user = adminUser;
+      req.organization = org;
+      req.isImpersonating = true;
+      req.impersonatorEmail = typeof payload.email === "string" ? payload.email : null;
+      return next();
+    }
+
     const [row] = await db
       .select({ user: users, organization: organizations })
       .from(users)
@@ -119,6 +152,8 @@ export const requireSuperAdmin: RequestHandler = async (req, res, next) => {
   if (!isSuperAdminEmail(payload.email)) {
     return res.status(403).json({ message: "Acesso restrito" });
   }
+  req.authUserId = payload.sub;
+  req.authEmail = typeof payload.email === "string" ? payload.email : null;
   next();
 };
 
@@ -126,6 +161,9 @@ export const requireSuperAdmin: RequestHandler = async (req, res, next) => {
 export const requireActiveSubscription: RequestHandler = (req, res, next) => {
   const org = req.organization;
   if (!org) return res.status(401).json({ message: "Unauthorized" });
+  // Super admin em impersonation acessa mesmo lojas com assinatura vencida
+  // (para dar suporte a lojas suspensas).
+  if (req.isImpersonating) return next();
   if (!hasActiveSubscription(org)) {
     return res.status(402).json({
       message:

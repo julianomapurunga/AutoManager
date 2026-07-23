@@ -19,6 +19,11 @@ import { eq, desc, and, sql, gte, lt, or, ilike, count } from "drizzle-orm";
 export type TenantCtx = {
   organizationId: number;
   userId?: string;
+  /**
+   * Presente quando um super admin está agindo dentro da loja (impersonation).
+   * A auditoria marca a ação como do super admin, não de um usuário da loja.
+   */
+  impersonatorEmail?: string | null;
 };
 
 function getMonthRange(offset: number = 0) {
@@ -30,13 +35,16 @@ function getMonthRange(offset: number = 0) {
 
 export class DatabaseStorage {
   private async audit(ctx: TenantCtx, action: string, entityType: string, entityId: number | null, details: string) {
+    // Durante impersonation, a ação é do super admin: não a atribui a um usuário
+    // da loja (userId nulo) e prefixa o detalhe deixando a origem explícita.
+    const isImpersonated = !!ctx.impersonatorEmail;
     await db.insert(auditLogs).values({
       organizationId: ctx.organizationId,
-      userId: ctx.userId ?? null,
+      userId: isImpersonated ? null : (ctx.userId ?? null),
       action,
       entityType,
       entityId,
-      details,
+      details: isImpersonated ? `[Super Admin: ${ctx.impersonatorEmail}] ${details}` : details,
     });
   }
 

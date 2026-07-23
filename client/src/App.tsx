@@ -25,6 +25,7 @@ import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import CompleteProfilePage from "@/pages/CompleteProfilePage";
+import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import PublicCatalog from "@/pages/PublicCatalog";
 import CatalogSettings from "@/pages/CatalogSettings";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
@@ -100,8 +101,9 @@ function CatalogRoute() {
 function AuthenticatedRouter() {
   const { user } = useAuth();
 
-  // Trial expirado ou assinatura inativa: mostra apenas a tela de assinatura
-  if (user && !user.organization.active) {
+  // Trial expirado ou assinatura inativa: mostra apenas a tela de assinatura.
+  // Exceção: o super admin em impersonation entra mesmo em lojas suspensas.
+  if (user && !user.organization.active && !user.impersonating) {
     return (
       <div className="min-h-screen bg-background">
         <BillingPage blocked />
@@ -205,6 +207,16 @@ function AppContent() {
 
   // Dono do SaaS: painel administrativo exclusivo, sem nada da interface de loja
   if (user.isSuperAdmin) return <AdminPage />;
+
+  // Super admin acessando uma loja: mesma interface de loja + faixa de aviso
+  if (user.impersonating) {
+    return (
+      <>
+        <ImpersonationBanner orgName={user.organization.name} />
+        <AuthenticatedRouter />
+      </>
+    );
+  }
 
   return <AuthenticatedRouter />;
 }

@@ -7,6 +7,8 @@ import { apiFetch, apiRequest } from "@/lib/queryClient";
 
 export type AuthUser = User & {
   isSuperAdmin?: boolean;
+  /** true quando é o super admin acessando esta loja (impersonation). */
+  impersonating?: boolean;
   organization: {
     id: number;
     name: string;

@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { getAccessToken } from "./supabase";
+import { getImpersonateOrgId } from "./impersonation";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -10,9 +11,12 @@ async function throwIfResNotOk(res: Response) {
 
 async function authHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
   const token = await getAccessToken();
+  const impersonateOrg = getImpersonateOrgId();
   return {
     ...(extra ?? {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    // Só o servidor decide se honra — e só se o token for o do super admin.
+    ...(impersonateOrg ? { "X-Impersonate-Org": String(impersonateOrg) } : {}),
   };
 }
 

@@ -206,6 +206,9 @@ export function registerAuthRoutes(app: Express): void {
     const org = req.organization!;
     res.json({
       ...req.user!,
+      // Sinaliza ao front que este acesso é um super admin dentro da loja,
+      // para exibir a faixa de aviso e o botão de voltar à central.
+      impersonating: req.isImpersonating ?? false,
       organization: {
         id: org.id,
         name: org.name,
