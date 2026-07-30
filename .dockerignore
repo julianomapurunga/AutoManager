@@ -27,6 +27,7 @@ npm-debug.log*
 Dockerfile*
 docker-compose*
 .dockerignore
+deploy.sh
 
 # Docs, SQL e testes que não precisam no runtime
 docs
