@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ─── Estágio de build ────────────────────────────────────────────────────────
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 WORKDIR /app
 
 # Instala TODAS as dependências (dev incluídas — necessárias para o build)
@@ -23,7 +23,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # ─── Estágio de runtime ──────────────────────────────────────────────────────
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5000
