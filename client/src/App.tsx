@@ -25,7 +25,10 @@ import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import CompleteProfilePage from "@/pages/CompleteProfilePage";
+import TermsPage from "@/pages/TermsPage";
+import PrivacyPage from "@/pages/PrivacyPage";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import { AppFooter } from "@/components/AppFooter";
 import PublicCatalog from "@/pages/PublicCatalog";
 import CatalogSettings from "@/pages/CatalogSettings";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
@@ -141,6 +144,7 @@ function AuthenticatedRouter() {
             </Switch>
           </div>
         </main>
+        <AppFooter />
       </div>
     </div>
   );
@@ -193,6 +197,10 @@ function AppContent() {
 
   // Catálogo público: acessível sem login
   if (location.startsWith("/loja/")) return <PublicCatalog />;
+
+  // Páginas legais: públicas, acessíveis por link direto (inclusive do rodapé)
+  if (location === "/termos") return <TermsPage />;
+  if (location === "/privacidade") return <PrivacyPage />;
 
   // Redefinição de senha: aberta pelo link do e-mail, antes de qualquer checagem
   // de sessão (o link de recuperação cria uma sessão temporária no Supabase)

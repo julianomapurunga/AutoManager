@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.3.1";
+export const APP_VERSION = "0.4.0";
 
 export interface ChangelogEntry {
   version: string;
@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "0.4.0",
+    date: "2026-07-30",
+    title: "Rodapé institucional e páginas legais",
+    changes: [
+      "Novo rodapé em todas as telas com links para Termos de Uso e Política de Privacidade e os dados da empresa",
+      "Novas páginas de Termos de Uso e Política de Privacidade",
+    ],
+  },
   {
     version: "0.3.1",
     date: "2026-07-07",

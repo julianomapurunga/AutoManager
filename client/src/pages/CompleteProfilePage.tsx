@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AppFooter } from "@/components/AppFooter";
 import { useAuth, type NeedsProfile } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,7 +59,8 @@ export default function CompleteProfilePage({ info }: CompleteProfilePageProps) 
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2">
@@ -219,6 +221,8 @@ export default function CompleteProfilePage({ info }: CompleteProfilePageProps) 
           </CardContent>
         </Card>
       </div>
+      </div>
+      <AppFooter />
     </div>
   );
 }

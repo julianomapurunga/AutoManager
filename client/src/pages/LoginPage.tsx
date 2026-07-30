@@ -1,4 +1,5 @@
 import { useAuth } from "@/hooks/use-auth";
+import { AppFooter } from "@/components/AppFooter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -58,7 +59,8 @@ export default function LoginPage({ onBackToLanding, onGoToRegister, onForgotPas
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         {onBackToLanding && (
           <Button
@@ -192,6 +194,8 @@ export default function LoginPage({ onBackToLanding, onGoToRegister, onForgotPas
           </CardContent>
         </Card>
       </div>
+      </div>
+      <AppFooter />
     </div>
   );
 }

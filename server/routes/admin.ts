@@ -70,10 +70,20 @@ export function registerAdminRoutes(app: Express): void {
       const [ticketCount] = await db.select({ n: sql<number>`count(*)` }).from(supportTickets);
       const [vehicleCount] = await db.select({ n: sql<number>`count(*)` }).from(vehicles);
 
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const soonMs = 7 * 86_400_000; // "próximas a vencer" = teste acaba em até 7 dias
+
       const byPlan: Record<string, number> = {};
       let activeSubscriptions = 0;
       let trialing = 0;
+      let canceled = 0;
+      let pastDue = 0;
+      let newThisMonth = 0;
       let mrr = 0; // receita mensal recorrente estimada (centavos)
+      const expiringSoon: Array<{
+        id: number; name: string; plan: string; trialEndsAt: Date | null; daysLeft: number;
+      }> = [];
 
       for (const org of orgs) {
         byPlan[org.plan] = (byPlan[org.plan] ?? 0) + 1;
@@ -82,7 +92,27 @@ export function registerAdminRoutes(app: Express): void {
           mrr += PLANS[org.plan as OrgPlan]?.priceMonthly ?? 0;
         }
         if (org.subscriptionStatus === "trialing" && hasActiveSubscription(org)) trialing++;
+        if (org.subscriptionStatus === "canceled") canceled++;
+        if (org.subscriptionStatus === "past_due") pastDue++;
+        if (org.createdAt && org.createdAt >= startOfMonth) newThisMonth++;
+
+        // Testes que expiram nos próximos 7 dias (ainda dentro do prazo)
+        if (
+          org.subscriptionStatus === "trialing" &&
+          org.trialEndsAt &&
+          org.trialEndsAt >= now &&
+          org.trialEndsAt.getTime() - now.getTime() <= soonMs
+        ) {
+          expiringSoon.push({
+            id: org.id,
+            name: org.name,
+            plan: org.plan,
+            trialEndsAt: org.trialEndsAt,
+            daysLeft: Math.ceil((org.trialEndsAt.getTime() - now.getTime()) / 86_400_000),
+          });
+        }
       }
+      expiringSoon.sort((a, b) => a.daysLeft - b.daysLeft);
 
       res.json({
         totalOrganizations: orgs.length,
@@ -91,12 +121,47 @@ export function registerAdminRoutes(app: Express): void {
         totalTickets: Number(ticketCount?.n ?? 0),
         activeSubscriptions,
         trialing,
+        canceled,
+        pastDue,
+        newThisMonth,
         mrr,
         byPlan,
+        expiringSoon,
       });
     } catch (err) {
       console.error("Admin overview error:", err);
       res.status(500).json({ message: "Erro ao carregar visão geral" });
+    }
+  });
+
+  /**
+   * Crescimento de lojas por mês, filtrável por ano.
+   * Retorna os 12 meses do ano pedido + a lista de anos disponíveis (para o filtro).
+   */
+  app.get("/api/admin/overview/growth", requireSuperAdmin, async (req, res) => {
+    try {
+      const rows = await db.select({ createdAt: organizations.createdAt }).from(organizations);
+      const nowYear = new Date().getFullYear();
+
+      const years = Array.from(
+        new Set(rows.map((r) => (r.createdAt ? new Date(r.createdAt).getFullYear() : nowYear))),
+      ).sort((a, b) => a - b);
+      if (years.length === 0) years.push(nowYear);
+
+      const requested = Number(req.query.year);
+      const year = years.includes(requested) ? requested : years[years.length - 1];
+
+      const months = Array.from({ length: 12 }, (_, i) => ({ month: i + 1, count: 0 }));
+      for (const r of rows) {
+        if (!r.createdAt) continue;
+        const d = new Date(r.createdAt);
+        if (d.getFullYear() === year) months[d.getMonth()].count++;
+      }
+
+      res.json({ years, year, months });
+    } catch (err) {
+      console.error("Admin growth error:", err);
+      res.status(500).json({ message: "Erro ao carregar crescimento" });
     }
   });
 
@@ -112,9 +177,12 @@ export function registerAdminRoutes(app: Express): void {
           trialEndsAt: organizations.trialEndsAt,
           pendingPlan: organizations.pendingPlan,
           createdAt: organizations.createdAt,
-          userCount: sql<number>`(select count(*) from users u where u.organization_id = ${organizations.id})`,
-          vehicleCount: sql<number>`(select count(*) from vehicles v where v.organization_id = ${organizations.id})`,
-          adminEmail: sql<string | null>`(select u.email from users u where u.organization_id = ${organizations.id} and u.role = 'Administrador' limit 1)`,
+          // Qualifica organizations.id (tabela externa): sem isso o Drizzle renderiza
+          // apenas "id", que dentro do subquery colide com users.id (varchar) e quebra
+          // com "operator does not exist: integer = character varying".
+          userCount: sql<number>`(select count(*) from users u where u.organization_id = organizations.id)`,
+          vehicleCount: sql<number>`(select count(*) from vehicles v where v.organization_id = organizations.id)`,
+          adminEmail: sql<string | null>`(select u.email from users u where u.organization_id = organizations.id and u.role = 'Administrador' limit 1)`,
         })
         .from(organizations)
         .orderBy(desc(organizations.createdAt));
@@ -198,9 +266,74 @@ export function registerAdminRoutes(app: Express): void {
         .from(organizations)
         .where(eq(organizations.subscriptionStatus, "canceled"));
 
+      // ── Liga cada cobrança à loja e ao admin (nome + contato) ──
+      // A cobrança do Asaas carrega customer/subscription/externalReference;
+      // mapeamos para a organização e, dela, para o Administrador.
+      const orgs = await db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          phone: organizations.phone,
+          asaasCustomerId: organizations.asaasCustomerId,
+          asaasSubscriptionId: organizations.asaasSubscriptionId,
+        })
+        .from(organizations);
+      const admins = await db
+        .select({
+          organizationId: users.organizationId,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          phone: users.phone,
+        })
+        .from(users)
+        .where(eq(users.role, "Administrador"));
+
+      const byCustomer = new Map(orgs.filter((o) => o.asaasCustomerId).map((o) => [o.asaasCustomerId!, o]));
+      const bySubscription = new Map(orgs.filter((o) => o.asaasSubscriptionId).map((o) => [o.asaasSubscriptionId!, o]));
+      const byOrgId = new Map(orgs.map((o) => [o.id, o]));
+      const adminByOrg = new Map(admins.map((a) => [a.organizationId, a]));
+
+      type OrgRow = (typeof orgs)[number];
+      const resolveOrg = (p: (typeof payments)[number]): OrgRow | null => {
+        if (p.externalReference) {
+          try {
+            const ref = JSON.parse(p.externalReference);
+            if (ref?.organizationId && byOrgId.has(Number(ref.organizationId))) {
+              return byOrgId.get(Number(ref.organizationId))!;
+            }
+          } catch { /* formato desconhecido */ }
+        }
+        if (p.subscription && bySubscription.has(p.subscription)) return bySubscription.get(p.subscription)!;
+        if (p.customer && byCustomer.has(p.customer)) return byCustomer.get(p.customer)!;
+        return null;
+      };
+
+      const enriched = payments.slice(0, 30).map((p) => {
+        const org = resolveOrg(p);
+        const admin = org ? adminByOrg.get(org.id) : null;
+        const personName = admin
+          ? `${admin.firstName}${admin.lastName ? ` ${admin.lastName}` : ""}`
+          : null;
+        return {
+          id: p.id,
+          status: p.status,
+          value: p.value,
+          dueDate: p.dueDate,
+          paymentDate: p.paymentDate,
+          billingType: p.billingType,
+          description: p.description,
+          invoiceUrl: p.invoiceUrl,
+          storeName: org?.name ?? null,
+          personName,
+          email: admin?.email ?? null,
+          phone: admin?.phone ?? org?.phone ?? null,
+        };
+      });
+
       res.json({
         configured: true,
-        payments: payments.slice(0, 30),
+        payments: enriched,
         summary: {
           revenue,
           netRevenue,

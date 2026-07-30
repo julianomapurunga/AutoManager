@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AppFooter } from "@/components/AppFooter";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +44,8 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <Button variant="ghost" onClick={onBackToLogin} className="mb-2" data-testid="button-back-to-login">
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -110,6 +112,8 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
           )}
         </Card>
       </div>
+      </div>
+      <AppFooter />
     </div>
   );
 }

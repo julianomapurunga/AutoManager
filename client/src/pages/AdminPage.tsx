@@ -17,15 +17,24 @@ import { couponDurationLabel } from "@shared/schema";
 import {
   ShieldCheck, LogOut, Store, Users, Car, LifeBuoy, CreditCard,
   TicketPercent, TrendingUp, Plus, Ban, CheckCircle2, Clock3, XCircle,
-  Settings2, FlaskConical, Rocket, PlugZap, Trash2, LogIn,
+  Settings2, FlaskConical, Rocket, PlugZap, Trash2, LogIn, AlertTriangle, CalendarClock, RefreshCw,
 } from "lucide-react";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
+} from "recharts";
 import { setImpersonateOrgId } from "@/lib/impersonation";
+
+const MONTH_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 function brl(cents: number) {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 // ─── Visão Geral ─────────────────────────────────────────────────────────────
+
+interface ExpiringStore {
+  id: number; name: string; plan: string; trialEndsAt: string | null; daysLeft: number;
+}
 
 interface Overview {
   totalOrganizations: number;
@@ -34,8 +43,87 @@ interface Overview {
   totalTickets: number;
   activeSubscriptions: number;
   trialing: number;
+  canceled: number;
+  pastDue: number;
+  newThisMonth: number;
   mrr: number;
   byPlan: Record<string, number>;
+  expiringSoon: ExpiringStore[];
+}
+
+interface Growth {
+  years: number[];
+  year: number;
+  months: { month: number; count: number }[];
+}
+
+function GrowthChart() {
+  const [year, setYear] = useState<number | null>(null);
+  const { data, isLoading } = useQuery<Growth>({
+    queryKey: ["/api/admin/overview/growth", year],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/admin/overview/growth${year ? `?year=${year}` : ""}`);
+      return res.json();
+    },
+  });
+
+  const chartData = (data?.months ?? []).map((m) => ({
+    name: MONTH_LABELS[m.month - 1],
+    Lojas: m.count,
+  }));
+  const total = (data?.months ?? []).reduce((s, m) => s + m.count, 0);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2 flex-row items-center justify-between gap-3 space-y-0">
+        <CardTitle className="text-base flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-primary" />
+          Novas lojas por mês
+        </CardTitle>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{total} no ano</span>
+          <Select
+            value={data?.year ? String(data.year) : undefined}
+            onValueChange={(v) => setYear(Number(v))}
+          >
+            <SelectTrigger className="w-28 h-8" data-testid="select-growth-year">
+              <SelectValue placeholder="Ano" />
+            </SelectTrigger>
+            <SelectContent>
+              {(data?.years ?? []).map((y) => (
+                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading || !data ? (
+          <Skeleton className="h-64 w-full" />
+        ) : (
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} className="text-xs fill-muted-foreground" />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} className="text-xs fill-muted-foreground" />
+                <Tooltip
+                  cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
+                  contentStyle={{
+                    background: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                />
+                <Bar dataKey="Lojas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={48} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function OverviewTab() {
@@ -44,11 +132,14 @@ function OverviewTab() {
 
   const cards = [
     { icon: Store, label: "Lojas cadastradas", value: data.totalOrganizations },
+    { icon: CreditCard, label: "Assinaturas ativas", value: data.activeSubscriptions },
+    { icon: TrendingUp, label: "Receita mensal (MRR)", value: brl(data.mrr) },
+    { icon: Store, label: "Novas lojas no mês", value: data.newThisMonth, accent: "text-emerald-600" },
+    { icon: AlertTriangle, label: "Pagamento pendente", value: data.pastDue, accent: data.pastDue > 0 ? "text-amber-600" : undefined },
+    { icon: XCircle, label: "Cancelamentos", value: data.canceled, accent: data.canceled > 0 ? "text-destructive" : undefined },
     { icon: Users, label: "Usuários", value: data.totalUsers },
     { icon: Car, label: "Veículos na plataforma", value: data.totalVehicles },
     { icon: LifeBuoy, label: "Chamados de suporte", value: data.totalTickets },
-    { icon: CreditCard, label: "Assinaturas ativas", value: data.activeSubscriptions },
-    { icon: TrendingUp, label: "Receita mensal (MRR)", value: brl(data.mrr) },
   ];
 
   return (
@@ -61,24 +152,57 @@ function OverviewTab() {
                 <c.icon className="w-4 h-4 text-primary" />
                 {c.label}
               </div>
-              <p className="text-2xl font-bold font-display">{c.value}</p>
+              <p className={`text-2xl font-bold font-display ${c.accent ?? ""}`}>{c.value}</p>
             </CardContent>
           </Card>
         ))}
       </div>
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">Lojas por plano</CardTitle></CardHeader>
-        <CardContent className="flex gap-3 flex-wrap">
-          {Object.entries(data.byPlan).map(([plan, n]) => (
-            <Badge key={plan} variant="secondary" className="text-sm no-default-hover-elevate no-default-active-elevate">
-              {plan}: {n}
-            </Badge>
-          ))}
-          <span className="text-sm text-muted-foreground self-center">
-            ({data.trialing} em período de teste ativo)
-          </span>
-        </CardContent>
-      </Card>
+
+      <GrowthChart />
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarClock className="w-4 h-4 text-primary" />
+              Testes vencendo em breve
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.expiringSoon.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">Nenhum teste vence nos próximos 7 dias.</p>
+            ) : (
+              <div className="space-y-2">
+                {data.expiringSoon.map((o) => (
+                  <div key={o.id} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium truncate">{o.name}</span>
+                    <Badge
+                      variant={o.daysLeft <= 2 ? "destructive" : "secondary"}
+                      className="shrink-0 no-default-hover-elevate no-default-active-elevate"
+                    >
+                      {o.daysLeft === 0 ? "vence hoje" : o.daysLeft === 1 ? "1 dia" : `${o.daysLeft} dias`}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Lojas por plano</CardTitle></CardHeader>
+          <CardContent className="flex gap-3 flex-wrap">
+            {Object.entries(data.byPlan).map(([plan, n]) => (
+              <Badge key={plan} variant="secondary" className="text-sm no-default-hover-elevate no-default-active-elevate">
+                {plan}: {n}
+              </Badge>
+            ))}
+            <span className="text-sm text-muted-foreground self-center">
+              ({data.trialing} em teste ativo)
+            </span>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -206,6 +330,7 @@ interface PaymentsResponse {
   payments: Array<{
     id: string; status: string; value: number; dueDate: string;
     paymentDate?: string | null; billingType: string; description?: string; invoiceUrl: string;
+    storeName: string | null; personName: string | null; email: string | null; phone: string | null;
   }>;
   summary: {
     revenue: number;        // reais
@@ -229,7 +354,17 @@ const PAYMENT_STATUS_PT: Record<string, string> = {
 };
 
 function PaymentsTab() {
-  const { data, isLoading } = useQuery<PaymentsResponse>({ queryKey: ["/api/admin/payments"] });
+  const { toast } = useToast();
+  const { data, isLoading, refetch, isRefetching } = useQuery<PaymentsResponse>({ queryKey: ["/api/admin/payments"] });
+
+  // A rota consulta o Asaas ao vivo; como o cache não expira sozinho, este botão
+  // força uma nova busca — é a "sincronização" que reflete cancelamentos/estornos.
+  const sync = async () => {
+    const r = await refetch();
+    if (!r.isError) toast({ title: "Pagamentos sincronizados com o Asaas" });
+    else toast({ title: "Erro ao sincronizar com o Asaas", variant: "destructive" });
+  };
+
   if (isLoading) return <Skeleton className="h-48 w-full" />;
   if (!data?.configured) return <p className="text-muted-foreground text-center py-8">Asaas não configurado no servidor.</p>;
 
@@ -237,6 +372,16 @@ function PaymentsTab() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm text-muted-foreground">
+          Dados ao vivo do Asaas. Sincronize para refletir cancelamentos e estornos recentes.
+        </p>
+        <Button variant="outline" size="sm" onClick={sync} disabled={isRefetching} data-testid="button-sync-payments">
+          <RefreshCw className={`w-4 h-4 mr-2 ${isRefetching ? "animate-spin" : ""}`} />
+          {isRefetching ? "Sincronizando..." : "Sincronizar com o Asaas"}
+        </Button>
+      </div>
+
       {/* Resumo financeiro */}
       {s && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -310,8 +455,16 @@ function PaymentsTab() {
         <Card key={p.id}>
           <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
             <div className="min-w-0">
-              <p className="font-medium text-sm truncate">{p.description || p.id}</p>
+              <p className="font-medium text-sm truncate">
+                {p.storeName ?? <span className="text-muted-foreground italic">Loja não identificada</span>}
+              </p>
+              {(p.personName || p.email || p.phone) && (
+                <p className="text-xs text-muted-foreground truncate">
+                  {[p.personName, p.email, p.phone].filter(Boolean).join(" · ")}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
+                {p.description ? `${p.description} · ` : ""}
                 Venc.: {new Date(p.dueDate + "T12:00:00").toLocaleDateString("pt-BR")} · {p.billingType}
                 {p.paymentDate ? ` · pago em ${new Date(p.paymentDate + "T12:00:00").toLocaleDateString("pt-BR")}` : ""}
               </p>

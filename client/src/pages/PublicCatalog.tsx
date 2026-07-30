@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Car, Search, MessageCircle, Gauge, Calendar, Paintbrush, ImageOff } from "lucide-react";
+import { AppFooter } from "@/components/AppFooter";
 
 interface CatalogVehicle {
   id: number;
@@ -259,9 +260,7 @@ export default function PublicCatalog() {
         )}
       </main>
 
-      <footer className="border-t border-border/50 py-6 px-6 text-center text-xs text-muted-foreground">
-        Catálogo de {data.store.name} · criado com VEHIRO
-      </footer>
+      <AppFooter />
     </div>
   );
 }

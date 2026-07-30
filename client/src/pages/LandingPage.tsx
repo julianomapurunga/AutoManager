@@ -9,7 +9,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { APP_VERSION } from "@shared/version";
+import { AppFooter } from "@/components/AppFooter";
 import { PLANS, TRIAL_DAYS } from "@shared/models/tenancy";
 import {
   Car, BarChart3, Users, Shield, ArrowRight, Wrench,
@@ -588,30 +588,7 @@ export default function LandingPage({ onGoToLogin, onGoToRegister }: LandingPage
         </section>
       </main>
 
-      <footer className="border-t border-border/50 py-10 px-6">
-        <div className="max-w-6xl mx-auto space-y-6">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Car className="w-5 h-5 text-primary" />
-              <span className="font-display font-semibold">VEHIRO</span>
-            </div>
-            <nav className="flex items-center gap-4 text-sm text-muted-foreground">
-              {navLinks.map((link) => (
-                <button
-                  key={link.id}
-                  onClick={() => scrollTo(link.id)}
-                  className="hover:text-foreground transition-colors"
-                >
-                  {link.label}
-                </button>
-              ))}
-            </nav>
-          </div>
-          <p className="text-center sm:text-left text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} VEHIRO v{APP_VERSION} — Gestão de Pátio de Veículos.
-          </p>
-        </div>
-      </footer>
+      <AppFooter />
     </div>
   );
 }
