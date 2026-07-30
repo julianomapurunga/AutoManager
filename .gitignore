@@ -12,5 +12,6 @@ uploads/
 # Material gerado por outras ferramentas (kits de marca etc.) — não é do projeto
 output/
 
-# Config local de ferramenta (Claude Code)
-.claude/
+# Config local de ferramenta (Claude Code) — versiona só as skills do projeto
+.claude/*
+!.claude/skills/
