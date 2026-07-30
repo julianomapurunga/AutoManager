@@ -14,8 +14,10 @@ services:
       NODE_ENV: production
       PORT: "5000"
     ports:
-      # Exponha atrás de um reverse proxy com TLS (ver docs/deploy.md).
-      - "5000:5000"
+      # Só na loopback (127.0.0.1): a porta NÃO fica exposta na internet.
+      # O acesso externo passa obrigatoriamente pelo reverse proxy com TLS
+      # (que roda no mesmo host e encaminha para localhost:5000). Ver docs/deploy.md.
+      - "127.0.0.1:5000:5000"
     volumes:
       # Uploads persistem entre reinícios do container.
       - vehiro_uploads:/app/uploads

@@ -38,7 +38,10 @@ docker compose up -d --build
 docker compose logs -f app
 ```
 
-O container escuta na porta **5000** (mapeada para a 5000 do host).
+O container escuta na porta **5000**, mapeada só na **loopback do host**
+(`127.0.0.1:5000`) — ou seja, **não** acessível pela internet. O acesso externo
+passa obrigatoriamente pelo reverse proxy com TLS (ver seção abaixo). Para testar
+localmente na VPS: `curl http://localhost:5000/healthz`.
 
 ## ⚠️ Reverse proxy + HTTPS (obrigatório em produção)
 
