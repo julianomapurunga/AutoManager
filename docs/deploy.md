@@ -64,3 +64,21 @@ um serviço Caddy ao `docker-compose.yml` quando o domínio estiver definido.
 - [ ] Webhook do Asaas apontando para `https://SEU-DOMINIO/api/billing/webhook`.
 - [ ] Google OAuth configurado nos painéis (ver `docs/google-oauth-setup.md`).
 - [ ] RLS habilitado no banco (ver `sql/enable-rls.sql`).
+
+## Troubleshooting
+
+### `ASAAS_API_KEY` chega vazia no container / aviso "aact_... is not defined"
+
+A partir do Docker Compose v2.24, o `env_file` faz interpolação de variáveis. Como
+a chave do Asaas começa com `$` (`$aact_...`), o compose a interpreta como uma
+variável inexistente e o valor chega vazio.
+
+**Correção:** no `.env` do servidor, escape o `$` como `$$`:
+```
+ASAAS_API_KEY=$$aact_...
+```
+Recrie o container (`docker compose up -d`) e confira com
+`docker compose exec app printenv ASAAS_API_KEY` (deve mostrar um `$` só).
+
+Isso vale só para o `.env` usado pelo docker-compose. No `.env` local (dotenv, via
+`npm run dev`), use o valor literal com um `$` só.
