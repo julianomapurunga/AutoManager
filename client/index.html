@@ -14,6 +14,24 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Conteúdo visível para buscadores e para a verificação de branding do Google
+         (que pode não executar JavaScript). Usuários com JS veem a aplicação normal. -->
+    <noscript>
+      <div style="max-width:640px;margin:64px auto;padding:0 24px;font-family:system-ui,-apple-system,sans-serif;text-align:center;color:#0f172a;">
+        <h1 style="color:#2563eb;margin-bottom:4px;">VEHIRO</h1>
+        <p style="font-size:18px;margin-top:0;">Gestão de Pátio de Veículos</p>
+        <p style="color:#475569;line-height:1.6;">
+          VEHIRO é um sistema de gestão para lojas e pátios de veículos: controle de estoque,
+          vendas, despesas, comissões e lucro por veículo, cadastro de clientes e catálogo público
+          para o consumidor final — tudo em um só lugar. Um produto Iron Tech LTDA.
+        </p>
+        <p>
+          <a href="/login">Entrar</a> ·
+          <a href="/termos">Termos de Uso</a> ·
+          <a href="/privacidade">Privacidade</a>
+        </p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
