@@ -13,10 +13,14 @@ export function AppFooter() {
     <footer className="border-t border-border bg-card/40">
       <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col gap-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center gap-2">
+          <Link
+            href="/"
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity w-fit"
+            data-testid="link-footer-home"
+          >
             <Car className="w-5 h-5 text-primary" />
             <span className="font-display font-semibold">{COMPANY.product}</span>
-          </div>
+          </Link>
           <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
             <Link href="/termos" className="hover:text-foreground transition-colors" data-testid="link-terms">
               Termos de Uso

@@ -55,18 +55,18 @@ export function ImageLightbox({ images, startIndex, open, onOpenChange, alt }: I
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="border-0 bg-transparent shadow-none p-0 max-w-[100vw] w-auto sm:max-w-5xl [&>button]:text-white [&>button]:opacity-90 [&>button]:hover:opacity-100 [&>button]:z-10"
+        className="flex items-center justify-center border-0 bg-transparent shadow-none p-0 gap-0 max-w-none w-screen h-[100dvh] left-0 top-0 translate-x-0 translate-y-0 rounded-none [&>button]:text-white [&>button]:opacity-90 [&>button]:hover:opacity-100 [&>button]:z-20"
       >
         <DialogTitle className="sr-only">Foto {index + 1} de {count}</DialogTitle>
         <div
-          className="relative flex items-center justify-center select-none"
+          className="relative flex items-center justify-center w-full h-full px-4 select-none"
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         >
           <img
             src={images[index]}
             alt={alt ? `${alt} — foto ${index + 1}` : `Foto ${index + 1}`}
-            className="max-h-[85vh] max-w-[95vw] object-contain rounded-md"
+            className="max-h-[88dvh] max-w-full object-contain rounded-md"
             draggable={false}
           />
 
@@ -76,7 +76,7 @@ export function ImageLightbox({ images, startIndex, open, onOpenChange, alt }: I
                 type="button"
                 onClick={() => go(-1)}
                 aria-label="Foto anterior"
-                className="absolute left-2 sm:-left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 text-white p-2 hover:bg-black/70 transition-colors"
+                className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 text-white p-2 hover:bg-black/70 transition-colors z-10"
               >
                 <ChevronLeft className="w-6 h-6" />
               </button>
@@ -84,11 +84,11 @@ export function ImageLightbox({ images, startIndex, open, onOpenChange, alt }: I
                 type="button"
                 onClick={() => go(1)}
                 aria-label="Próxima foto"
-                className="absolute right-2 sm:-right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 text-white p-2 hover:bg-black/70 transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 text-white p-2 hover:bg-black/70 transition-colors z-10"
               >
                 <ChevronRight className="w-6 h-6" />
               </button>
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 text-white text-xs px-3 py-1">
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 text-white text-xs px-3 py-1">
                 {index + 1} / {count}
               </div>
             </>
