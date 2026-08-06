@@ -28,8 +28,48 @@ interface CatalogData {
     name: string;
     description: string | null;
     whatsapp: string | null;
+    banner: string | null;
+    themeColor: string | null;
   };
   vehicles: CatalogVehicle[];
+}
+
+/** Converte "#rrggbb" nos componentes HSL "H S% L%" que o Tailwind (--primary) espera. */
+function hexToHslParts(hex: string): { hsl: string; light: boolean } | null {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return null;
+  const int = parseInt(m[1], 16);
+  const r = ((int >> 16) & 255) / 255;
+  const g = ((int >> 8) & 255) / 255;
+  const b = (int & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+  }
+  return {
+    hsl: `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`,
+    light: l > 0.6, // fundo claro → texto escuro
+  };
+}
+
+/** Variáveis CSS que sobrescrevem a cor de destaque só dentro do catálogo. */
+function themeStyle(color: string | null): React.CSSProperties {
+  const parts = color ? hexToHslParts(color) : null;
+  if (!parts) return {};
+  return {
+    ["--primary" as any]: parts.hsl,
+    ["--ring" as any]: parts.hsl,
+    ["--primary-foreground" as any]: parts.light ? "0 0% 10%" : "0 0% 100%",
+  };
 }
 
 function formatPrice(cents: number | null) {
@@ -216,7 +256,7 @@ export default function PublicCatalog() {
     : data.vehicles;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col" style={themeStyle(data.store.themeColor)}>
       <header className="border-b border-border/50 bg-card/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 min-w-0">
@@ -237,6 +277,17 @@ export default function PublicCatalog() {
           )}
         </div>
       </header>
+
+      {data.store.banner && (
+        <div className="w-full bg-muted">
+          <img
+            src={data.store.banner}
+            alt={`Banner ${data.store.name}`}
+            className="w-full max-h-72 object-cover"
+            data-testid="img-catalog-banner"
+          />
+        </div>
+      )}
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8 space-y-6">
         <div className="space-y-2">

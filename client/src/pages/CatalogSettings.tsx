@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, apiFetch } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Globe, Copy, ExternalLink, Sparkles, Store, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Globe, Copy, ExternalLink, Sparkles, Store, Loader2, CheckCircle2, AlertCircle, ImagePlus, Trash2, Palette } from "lucide-react";
+import { HexColorPicker, HexColorInput } from "react-colorful";
 import { formatPhone } from "@/lib/masks";
+
+const DEFAULT_THEME_COLOR = "#2563eb"; // cor padrão do sistema
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{2,49}$/;
 
@@ -26,6 +29,8 @@ interface CatalogSettingsData {
   catalogSlug: string | null;
   catalogDescription: string | null;
   catalogWhatsapp: string | null;
+  catalogBannerPath: string | null;
+  catalogThemeColor: string | null;
 }
 
 function slugify(value: string) {
@@ -43,6 +48,7 @@ function slugify(value: string) {
 export default function CatalogSettings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading } = useQuery<CatalogSettingsData>({
     queryKey: ["/api/catalog/settings"],
@@ -52,6 +58,7 @@ export default function CatalogSettings() {
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [themeColor, setThemeColor] = useState(DEFAULT_THEME_COLOR);
   const [slugStatus, setSlugStatus] = useState<SlugStatus>({ state: "idle" });
 
   useEffect(() => {
@@ -60,6 +67,7 @@ export default function CatalogSettings() {
       setSlug(data.catalogSlug ?? "");
       setDescription(data.catalogDescription ?? "");
       setWhatsapp(data.catalogWhatsapp ?? "");
+      setThemeColor(data.catalogThemeColor ?? DEFAULT_THEME_COLOR);
     }
   }, [data]);
 
@@ -98,6 +106,7 @@ export default function CatalogSettings() {
         catalogSlug: slug || null,
         catalogDescription: description || null,
         catalogWhatsapp: whatsapp || null,
+        catalogThemeColor: themeColor || null,
       });
       return res.json();
     },
@@ -114,6 +123,37 @@ export default function CatalogSettings() {
         toast({ title: "Erro ao salvar configurações", variant: "destructive" });
       }
     },
+  });
+
+  const bannerMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("banner", file);
+      const res = await apiFetch("/api/catalog/banner", { method: "POST", body: form });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Erro ao enviar o banner");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/catalog/settings"] });
+      toast({ title: "Banner atualizado!" });
+    },
+    onError: (err: any) => toast({ title: err.message || "Erro ao enviar o banner", variant: "destructive" }),
+  });
+
+  const bannerDeleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiFetch("/api/catalog/banner", { method: "DELETE" });
+      if (!res.ok) throw new Error("Erro ao remover o banner");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/catalog/settings"] });
+      toast({ title: "Banner removido" });
+    },
+    onError: () => toast({ title: "Erro ao remover o banner", variant: "destructive" }),
   });
 
   // Não deixa salvar/publicar com um endereço inválido ou em uso.
@@ -245,7 +285,117 @@ export default function CatalogSettings() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 pt-2">
+          {/* Banner da loja */}
+          <div className="space-y-2 border-t pt-5">
+            <Label className="flex items-center gap-2">
+              <ImagePlus className="w-4 h-4 text-primary" /> Banner da loja (opcional)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Imagem de destaque exibida no topo do catálogo, de ponta a ponta. Recomendado ~1600×400px.
+            </p>
+            <input
+              ref={bannerInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) bannerMutation.mutate(file);
+                e.target.value = "";
+              }}
+              data-testid="input-catalog-banner"
+            />
+            {data?.catalogBannerPath ? (
+              <div className="space-y-2">
+                <div className="rounded-md overflow-hidden border bg-muted">
+                  <img
+                    src={data.catalogBannerPath}
+                    alt="Banner do catálogo"
+                    className="w-full h-32 object-cover"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => bannerInputRef.current?.click()}
+                    disabled={bannerMutation.isPending}
+                    data-testid="button-change-banner"
+                  >
+                    {bannerMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ImagePlus className="w-4 h-4 mr-2" />}
+                    Trocar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => bannerDeleteMutation.mutate()}
+                    disabled={bannerDeleteMutation.isPending}
+                    data-testid="button-remove-banner"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Remover
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => bannerInputRef.current?.click()}
+                disabled={bannerMutation.isPending}
+                data-testid="button-upload-banner"
+              >
+                {bannerMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ImagePlus className="w-4 h-4 mr-2" />}
+                Enviar banner
+              </Button>
+            )}
+          </div>
+
+          {/* Cor da loja */}
+          <div className="space-y-3 border-t pt-5">
+            <Label className="flex items-center gap-2">
+              <Palette className="w-4 h-4 text-primary" /> Cor da loja
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Personalize a cor de destaque da sua página (botões, preços e ícones), como se fosse seu próprio site.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              <div className="catalog-color-picker">
+                <HexColorPicker color={themeColor} onChange={setThemeColor} />
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">#</span>
+                  <HexColorInput
+                    color={themeColor}
+                    onChange={setThemeColor}
+                    prefixed={false}
+                    className="w-28 rounded-md border border-input bg-background px-3 py-2 text-sm uppercase font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+                    data-testid="input-theme-color-hex"
+                  />
+                  <div
+                    className="w-9 h-9 rounded-md border shrink-0"
+                    style={{ backgroundColor: themeColor }}
+                    aria-hidden
+                  />
+                </div>
+                {themeColor.toLowerCase() !== DEFAULT_THEME_COLOR && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    onClick={() => setThemeColor(DEFAULT_THEME_COLOR)}
+                    data-testid="button-reset-theme-color"
+                  >
+                    Restaurar cor padrão
+                  </Button>
+                )}
+                <p className="text-xs text-muted-foreground max-w-48">
+                  Arraste no seletor ou digite o código hexadecimal. Salve para aplicar.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-2 border-t">
             <Button
               onClick={() => saveMutation.mutate()}
               disabled={!canSave}

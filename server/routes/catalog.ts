@@ -1,9 +1,13 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { eq, and, ne, desc, inArray, sql } from "drizzle-orm";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import crypto from "crypto";
 import { db } from "../db";
 import { requireAuth, requireActiveSubscription, requireRole } from "../auth";
-import { rateLimit } from "../security";
+import { rateLimit, validateUploadedImages } from "../security";
 import { vehicles, vehicleImages } from "@shared/schema";
 import {
   organizations,
@@ -29,6 +33,27 @@ const settingsSchema = z.object({
     .optional(),
   catalogDescription: z.string().max(500, "Máximo de 500 caracteres").nullable().optional(),
   catalogWhatsapp: z.string().max(20).nullable().optional(),
+  catalogThemeColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Cor inválida")
+    .nullable()
+    .optional(),
+});
+
+// Upload do banner do catálogo (imagem gravada em /uploads).
+const uploadsDir = path.join(process.cwd(), "uploads");
+const bannerStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) =>
+    cb(null, `${crypto.randomBytes(16).toString("hex")}${path.extname(file.originalname)}`),
+});
+const bannerUpload = multer({
+  storage: bannerStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (/\.(jpg|jpeg|png|gif|webp)$/i.test(path.extname(file.originalname))) cb(null, true);
+    else cb(new Error("Apenas imagens são permitidas (jpg, png, gif, webp)"));
+  },
 });
 
 /** Bloqueia o recurso para planos sem catálogo público. */
@@ -58,6 +83,8 @@ export function registerCatalogRoutes(app: Express): void {
         catalogSlug: org.catalogSlug,
         catalogDescription: org.catalogDescription,
         catalogWhatsapp: org.catalogWhatsapp,
+        catalogBannerPath: org.catalogBannerPath,
+        catalogThemeColor: org.catalogThemeColor,
       });
     },
   );
@@ -97,6 +124,7 @@ export function registerCatalogRoutes(app: Express): void {
             ...(input.catalogSlug !== undefined ? { catalogSlug: input.catalogSlug } : {}),
             ...(input.catalogDescription !== undefined ? { catalogDescription: input.catalogDescription } : {}),
             ...(input.catalogWhatsapp !== undefined ? { catalogWhatsapp: input.catalogWhatsapp } : {}),
+            ...(input.catalogThemeColor !== undefined ? { catalogThemeColor: input.catalogThemeColor } : {}),
           })
           .where(eq(organizations.id, org.id))
           .returning();
@@ -107,6 +135,8 @@ export function registerCatalogRoutes(app: Express): void {
           catalogSlug: updated.catalogSlug,
           catalogDescription: updated.catalogDescription,
           catalogWhatsapp: updated.catalogWhatsapp,
+          catalogBannerPath: updated.catalogBannerPath,
+          catalogThemeColor: updated.catalogThemeColor,
         });
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -147,6 +177,53 @@ export function registerCatalogRoutes(app: Express): void {
         .where(and(eq(organizations.catalogSlug, slug), ne(organizations.id, org.id)));
       if (taken) return res.json({ available: false, reason: "taken", message: "Este endereço já está em uso" });
       return res.json({ available: true });
+    },
+  );
+
+  // Envia/atualiza o banner do catálogo.
+  app.post(
+    "/api/catalog/banner",
+    requireAuth,
+    requireActiveSubscription,
+    requireRole("Administrador", "Gerente"),
+    requireCatalogAccess,
+    bannerUpload.single("banner"),
+    async (req, res) => {
+      try {
+        const file = req.file;
+        if (!file) return res.status(400).json({ message: "Nenhuma imagem enviada" });
+        if (!validateUploadedImages([file])) {
+          fs.unlink(path.join(uploadsDir, file.filename), () => {});
+          return res.status(400).json({ message: "Arquivo inválido: envie uma imagem real (jpg, png, gif ou webp)" });
+        }
+        const org = req.organization!;
+        // Remove o banner anterior, se houver.
+        if (org.catalogBannerPath) {
+          fs.unlink(path.join(uploadsDir, path.basename(org.catalogBannerPath)), () => {});
+        }
+        const bannerPath = `/uploads/${file.filename}`;
+        await db.update(organizations).set({ catalogBannerPath: bannerPath }).where(eq(organizations.id, org.id));
+        res.json({ catalogBannerPath: bannerPath });
+      } catch (err) {
+        console.error("Catalog banner upload error:", err);
+        res.status(400).json({ message: "Erro ao enviar o banner" });
+      }
+    },
+  );
+
+  // Remove o banner do catálogo.
+  app.delete(
+    "/api/catalog/banner",
+    requireAuth,
+    requireActiveSubscription,
+    requireRole("Administrador", "Gerente"),
+    async (req, res) => {
+      const org = req.organization!;
+      if (org.catalogBannerPath) {
+        fs.unlink(path.join(uploadsDir, path.basename(org.catalogBannerPath)), () => {});
+      }
+      await db.update(organizations).set({ catalogBannerPath: null }).where(eq(organizations.id, org.id));
+      res.json({ catalogBannerPath: null });
     },
   );
 
@@ -224,6 +301,8 @@ export function registerCatalogRoutes(app: Express): void {
           name: org.name,
           description: org.catalogDescription,
           whatsapp: org.catalogWhatsapp || org.phone,
+          banner: org.catalogBannerPath,
+          themeColor: org.catalogThemeColor,
         },
         vehicles: availableVehicles.map((v) => ({
           ...v,

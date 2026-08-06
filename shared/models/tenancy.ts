@@ -82,6 +82,10 @@ export const organizations = pgTable("organizations", {
   catalogEnabled: boolean("catalog_enabled").default(false).notNull(),
   catalogDescription: text("catalog_description"),
   catalogWhatsapp: text("catalog_whatsapp"),
+  /** Banner (imagem full-width) exibido no topo do catálogo público. */
+  catalogBannerPath: text("catalog_banner_path"),
+  /** Cor de destaque (hex #rrggbb) que personaliza a página da loja. */
+  catalogThemeColor: text("catalog_theme_color"),
   createdAt: timestamp("created_at").defaultNow(),
 }).enableRLS();
 
