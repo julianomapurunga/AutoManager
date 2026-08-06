@@ -20,6 +20,8 @@ import {
   HelpCircle,
   CreditCard,
   Lock,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, useFipeAccess, useCatalogAccess } from "@/hooks/use-auth";
@@ -27,7 +29,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { APP_VERSION } from "@shared/version";
 
 interface NavItem {
@@ -60,7 +62,7 @@ const settingsSubItems = [
 ];
 
 /** Item de menu bloqueado pelo plano: desabilitado, com cadeado e tooltip. */
-function LockedNavItem({ item, reason, compact = false }: { item: NavItem; reason: string; compact?: boolean }) {
+function LockedNavItem({ item, reason, collapsed = false }: { item: NavItem; reason: string; collapsed?: boolean }) {
   return (
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild>
@@ -68,14 +70,13 @@ function LockedNavItem({ item, reason, compact = false }: { item: NavItem; reaso
           aria-disabled="true"
           data-testid={`nav-locked-${item.label.toLowerCase()}`}
           className={cn(
-            "flex items-center gap-3 rounded-md font-medium cursor-not-allowed select-none",
-            "text-muted-foreground/50",
-            compact ? "px-4 py-3" : "px-4 py-3",
+            "flex items-center rounded-md font-medium cursor-not-allowed select-none text-muted-foreground/50",
+            collapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3",
           )}
         >
           <item.icon className="w-5 h-5 opacity-50" />
-          <span className="flex-1">{item.label}</span>
-          <Lock className="w-3.5 h-3.5 shrink-0" />
+          {!collapsed && <span className="flex-1">{item.label}</span>}
+          {!collapsed && <Lock className="w-3.5 h-3.5 shrink-0" />}
         </div>
       </TooltipTrigger>
       <TooltipContent side="right" className="max-w-56">
@@ -105,6 +106,16 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const getLock = useItemLock();
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("vehiro_sidebar_collapsed") === "1",
+  );
+
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      const next = !c;
+      localStorage.setItem("vehiro_sidebar_collapsed", next ? "1" : "0");
+      return next;
+    });
 
   const getInitials = (first?: string | null, last?: string | null) => {
     const f = first?.charAt(0) || "";
@@ -112,16 +123,61 @@ export function Sidebar() {
     return (f + l).toUpperCase() || "U";
   };
 
+  // Quando recolhido, envolve o item num tooltip com o rótulo (à direita).
+  const withTip = (label: string, node: ReactNode) =>
+    collapsed ? (
+      <Tooltip delayDuration={150}>
+        <TooltipTrigger asChild>{node}</TooltipTrigger>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
+    ) : (
+      node
+    );
+
+  const rowClass = (active: boolean) =>
+    cn(
+      "flex items-center rounded-md font-medium transition-all duration-200 cursor-pointer",
+      collapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3",
+      active ? "bg-primary/10 text-primary" : "text-muted-foreground hover-elevate",
+    );
+
   return (
-    <aside className="w-64 bg-card border-r border-border h-screen sticky top-0 flex-col hidden md:flex" data-testid="sidebar">
-      <div className="p-6 border-b border-border/50">
-        <h1 className="text-2xl font-bold font-display bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
-          <Car className="w-8 h-8 text-primary" />
-          VEHIRO
-        </h1>
+    <aside
+      className={cn(
+        "bg-card border-r border-border h-screen sticky top-0 flex-col hidden md:flex transition-all duration-200",
+        collapsed ? "w-16" : "w-64",
+      )}
+      data-testid="sidebar"
+    >
+      {/* Cabeçalho + botão de recolher/expandir */}
+      <div
+        className={cn(
+          "h-16 border-b border-border/50 flex items-center shrink-0",
+          collapsed ? "justify-center px-2" : "justify-between px-4",
+        )}
+      >
+        {!collapsed && (
+          <h1 className="text-xl font-bold font-display bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
+            <Car className="w-7 h-7 text-primary" />
+            VEHIRO
+          </h1>
+        )}
+        {withTip(
+          collapsed ? "Expandir menu" : "Recolher menu",
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleCollapsed}
+            className="shrink-0 text-muted-foreground"
+            data-testid="button-toggle-sidebar"
+            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+          >
+            {collapsed ? <ChevronsRight className="w-5 h-5" /> : <ChevronsLeft className="w-5 h-5" />}
+          </Button>,
+        )}
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className={cn("flex-1 overflow-y-auto space-y-1", collapsed ? "p-2" : "p-4")}>
         {items
           .filter((item) => {
             if (item.adminOnly) return user?.role === "Administrador";
@@ -131,7 +187,7 @@ export function Sidebar() {
           .map((item) => {
             const lockReason = getLock(item);
             if (lockReason) {
-              return <LockedNavItem key={item.href} item={item} reason={lockReason} />;
+              return <LockedNavItem key={item.href} item={item} reason={lockReason} collapsed={collapsed} />;
             }
             const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
             const isSettingsItem = item.label === "Configurações";
@@ -143,40 +199,46 @@ export function Sidebar() {
                 location.startsWith("/changelog") ||
                 location.startsWith("/activity-log");
 
+              // Recolhido: sem submenu — o ícone leva direto às Configurações.
+              if (collapsed) {
+                return (
+                  <div key={item.href}>
+                    {withTip(
+                      item.label,
+                      <Link href={item.href}>
+                        <div data-testid={`nav-${item.label.toLowerCase()}`} className={rowClass(settingsSectionActive || isActive)}>
+                          <item.icon className={cn("w-5 h-5", settingsSectionActive || isActive ? "text-primary" : "text-muted-foreground")} />
+                        </div>
+                      </Link>,
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <div key={item.href} className="space-y-1">
                   <Link href={item.href}>
                     <div
                       data-testid={`nav-${item.label.toLowerCase()}`}
-                      className={cn(
-                        "flex items-center gap-3 px-4 py-3 rounded-md font-medium transition-all duration-200 cursor-pointer",
-                        settingsSectionActive || isActive
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover-elevate"
-                      )}
+                      className={rowClass(settingsSectionActive || isActive)}
                       onClick={() => setShowSettingsMenu((prev) => !prev)}
                     >
                       <item.icon
-                        className={cn(
-                          "w-5 h-5",
-                          settingsSectionActive || isActive ? "text-primary" : "text-muted-foreground"
-                        )}
+                        className={cn("w-5 h-5", settingsSectionActive || isActive ? "text-primary" : "text-muted-foreground")}
                       />
-                      {item.label}
-                      <span className="ml-auto">
-                        {showSettingsMenu ? (
-                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                        )}
-                      </span>
+                      <span className="flex-1">{item.label}</span>
+                      {showSettingsMenu ? (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      )}
                     </div>
                   </Link>
 
                   {showSettingsMenu && (
                     <div className="ml-8 space-y-1">
                       {settingsSubItems
-                        .filter((sub) => sub.roles.includes(user?.role || "" as any))
+                        .filter((sub) => sub.roles.includes(user?.role || ("" as any)))
                         .map((sub) => {
                           const isSubActive =
                             location === sub.href || (sub.href !== "/" && location.startsWith(sub.href));
@@ -186,17 +248,10 @@ export function Sidebar() {
                                 data-testid={`nav-${sub.label.toLowerCase()}`}
                                 className={cn(
                                   "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer",
-                                  isSubActive
-                                    ? "bg-primary/10 text-primary"
-                                    : "text-muted-foreground hover:bg-muted/60"
+                                  isSubActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/60",
                                 )}
                               >
-                                <sub.icon
-                                  className={cn(
-                                    "w-4 h-4",
-                                    isSubActive ? "text-primary" : "text-muted-foreground"
-                                  )}
-                                />
+                                <sub.icon className={cn("w-4 h-4", isSubActive ? "text-primary" : "text-muted-foreground")} />
                                 {sub.label}
                               </div>
                             </Link>
@@ -209,58 +264,78 @@ export function Sidebar() {
             }
 
             return (
-              <Link key={item.href} href={item.href}>
-                <div
-                  data-testid={`nav-${item.label.toLowerCase()}`}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-md font-medium transition-all duration-200 cursor-pointer",
-                    isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover-elevate"
-                  )}
-                >
-                  <item.icon className={cn("w-5 h-5", isActive ? "text-primary" : "text-muted-foreground")} />
-                  {item.label}
-                </div>
-              </Link>
+              <div key={item.href}>
+                {withTip(
+                  item.label,
+                  <Link href={item.href}>
+                    <div data-testid={`nav-${item.label.toLowerCase()}`} className={rowClass(isActive)}>
+                      <item.icon className={cn("w-5 h-5", isActive ? "text-primary" : "text-muted-foreground")} />
+                      {!collapsed && item.label}
+                    </div>
+                  </Link>,
+                )}
+              </div>
             );
           })}
       </nav>
 
-      <div className="p-4 border-t border-border/50 space-y-3">
-        <Link href="/profile">
-          <div className="flex items-center gap-3 mb-3 px-2 py-1 rounded-md cursor-pointer hover-elevate" data-testid="link-profile">
-            <Avatar className="h-9 w-9">
-              {user?.profileImageUrl && (
-                <AvatarImage src={user.profileImageUrl} alt={user.firstName || ""} />
-              )}
-              <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                {getInitials(user?.firstName, user?.lastName)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate" data-testid="text-username">
-                {user?.firstName} {user?.lastName}
-              </p>
-              <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="text-user-role">
-                {user?.role}
-              </Badge>
-            </div>
-            <UserCog className="w-4 h-4 text-muted-foreground shrink-0" />
-          </div>
-        </Link>
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-muted-foreground"
-          onClick={() => logout()}
-          data-testid="button-logout"
-        >
-          <LogOut className="w-4 h-4 mr-2" />
-          Sair
-        </Button>
-        <p className="text-xs text-muted-foreground/60 text-center" data-testid="text-app-version">
-          v{APP_VERSION}
-        </p>
+      {/* Rodapé: perfil + sair (sempre visível) */}
+      <div className={cn("border-t border-border/50 shrink-0", collapsed ? "p-2 flex flex-col items-center gap-2" : "p-4 space-y-3")}>
+        {collapsed ? (
+          <>
+            {withTip(
+              `${user?.firstName ?? ""} ${user?.lastName ?? ""} · ${user?.role ?? ""}`.trim(),
+              <Link href="/profile">
+                <Avatar className="h-9 w-9 cursor-pointer" data-testid="link-profile">
+                  {user?.profileImageUrl && <AvatarImage src={user.profileImageUrl} alt={user.firstName || ""} />}
+                  <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                    {getInitials(user?.firstName, user?.lastName)}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>,
+            )}
+            {withTip(
+              "Sair",
+              <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={() => logout()} data-testid="button-logout" aria-label="Sair">
+                <LogOut className="w-5 h-5" />
+              </Button>,
+            )}
+          </>
+        ) : (
+          <>
+            <Link href="/profile">
+              <div className="flex items-center gap-3 px-2 py-1 rounded-md cursor-pointer hover-elevate" data-testid="link-profile">
+                <Avatar className="h-9 w-9">
+                  {user?.profileImageUrl && <AvatarImage src={user.profileImageUrl} alt={user.firstName || ""} />}
+                  <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                    {getInitials(user?.firstName, user?.lastName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate" data-testid="text-username">
+                    {user?.firstName} {user?.lastName}
+                  </p>
+                  <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="text-user-role">
+                    {user?.role}
+                  </Badge>
+                </div>
+                <UserCog className="w-4 h-4 text-muted-foreground shrink-0" />
+              </div>
+            </Link>
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-muted-foreground"
+              onClick={() => logout()}
+              data-testid="button-logout"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair
+            </Button>
+            <p className="text-xs text-muted-foreground/60 text-center" data-testid="text-app-version">
+              v{APP_VERSION}
+            </p>
+          </>
+        )}
       </div>
     </aside>
   );
@@ -296,7 +371,7 @@ export function MobileHeader() {
             .map((item) => {
               const lockReason = getLock(item);
               if (lockReason) {
-                return <LockedNavItem key={item.href} item={item} reason={lockReason} compact />;
+                return <LockedNavItem key={item.href} item={item} reason={lockReason} />;
               }
               const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
               const isSettingsItem = item.label === "Configurações";
