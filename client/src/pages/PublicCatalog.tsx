@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Car, Search, MessageCircle, Gauge, Calendar, Paintbrush, ImageOff } from "lucide-react";
 import { AppFooter } from "@/components/AppFooter";
+import { ImageLightbox } from "@/components/ImageLightbox";
 
 interface CatalogVehicle {
   id: number;
@@ -54,7 +55,15 @@ function whatsappLink(phone: string, vehicle?: CatalogVehicle) {
   return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }
 
-function VehicleCard({ vehicle, whatsapp }: { vehicle: CatalogVehicle; whatsapp: string | null }) {
+function VehicleCard({
+  vehicle,
+  whatsapp,
+  onOpenPhotos,
+}: {
+  vehicle: CatalogVehicle;
+  whatsapp: string | null;
+  onOpenPhotos: (images: string[], index: number, title: string) => void;
+}) {
   const [imgIndex, setImgIndex] = useState(0);
   const hasImages = vehicle.images.length > 0;
 
@@ -66,8 +75,9 @@ function VehicleCard({ vehicle, whatsapp }: { vehicle: CatalogVehicle; whatsapp:
             <img
               src={vehicle.images[imgIndex]}
               alt={`${vehicle.brand} ${vehicle.model}`}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover cursor-zoom-in"
               loading="lazy"
+              onClick={() => onOpenPhotos(vehicle.images, imgIndex, `${vehicle.brand} ${vehicle.model}`)}
             />
             {vehicle.images.length > 1 && (
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
@@ -140,6 +150,13 @@ export default function PublicCatalog() {
   const [, params] = useRoute("/loja/:slug");
   const slug = params?.slug ?? "";
   const [search, setSearch] = useState("");
+  const [lightbox, setLightbox] = useState<{ images: string[]; index: number; title: string } | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  const openPhotos = (images: string[], index: number, title: string) => {
+    setLightbox({ images, index, title });
+    setLightboxOpen(true);
+  };
 
   const { data, isLoading, isError } = useQuery<CatalogData>({
     queryKey: [`/api/public/catalog/${slug}`],
@@ -248,7 +265,7 @@ export default function PublicCatalog() {
         {filtered.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((v) => (
-              <VehicleCard key={v.id} vehicle={v} whatsapp={data.store.whatsapp} />
+              <VehicleCard key={v.id} vehicle={v} whatsapp={data.store.whatsapp} onOpenPhotos={openPhotos} />
             ))}
           </div>
         ) : (
@@ -261,6 +278,16 @@ export default function PublicCatalog() {
       </main>
 
       <AppFooter />
+
+      {lightbox && (
+        <ImageLightbox
+          images={lightbox.images}
+          startIndex={lightbox.index}
+          alt={lightbox.title}
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
+        />
+      )}
     </div>
   );
 }

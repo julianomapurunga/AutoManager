@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { eq, and, ne, desc, inArray } from "drizzle-orm";
+import { eq, and, ne, desc, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import { requireAuth, requireActiveSubscription, requireRole } from "../auth";
 import { rateLimit } from "../security";
@@ -121,6 +121,35 @@ export function registerCatalogRoutes(app: Express): void {
     },
   );
 
+  // Verifica em tempo real se um endereço (slug) está disponível para esta loja.
+  app.get(
+    "/api/catalog/slug-available",
+    requireAuth,
+    requireActiveSubscription,
+    requireRole("Administrador", "Gerente"),
+    async (req, res) => {
+      const slug = String(req.query.slug ?? "").toLowerCase();
+      if (!slug) return res.json({ available: false, reason: "empty" });
+      if (!catalogSlugSchema.test(slug)) {
+        return res.json({
+          available: false,
+          reason: "format",
+          message: "Use apenas letras minúsculas, números e hífens (3 a 50 caracteres)",
+        });
+      }
+      if (RESERVED_SLUGS.has(slug)) {
+        return res.json({ available: false, reason: "reserved", message: "Este endereço é reservado, escolha outro" });
+      }
+      const org = req.organization!;
+      const [taken] = await db
+        .select({ id: organizations.id })
+        .from(organizations)
+        .where(and(eq(organizations.catalogSlug, slug), ne(organizations.id, org.id)));
+      if (taken) return res.json({ available: false, reason: "taken", message: "Este endereço já está em uso" });
+      return res.json({ available: true });
+    },
+  );
+
   // ─── Página pública (sem autenticação) ──────────────────────────────────
   // Expõe SOMENTE dados públicos: nada de preço de compra, placa,
   // proprietário, observações internas ou dados de venda.
@@ -174,7 +203,11 @@ export function registerCatalogRoutes(app: Express): void {
             })
             .from(vehicleImages)
             .where(inArray(vehicleImages.vehicleId, ids))
-            .orderBy(desc(vehicleImages.createdAt))
+            // Externas primeiro (são as principais dos anúncios), depois internas e placa.
+            .orderBy(
+              sql`case ${vehicleImages.category} when 'externa' then 0 when 'interna' then 1 when 'placa' then 2 else 3 end`,
+              desc(vehicleImages.createdAt),
+            )
         : [];
 
       const imagesByVehicle = new Map<number, string[]>();

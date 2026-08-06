@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, apiFetch } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,16 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Globe, Copy, ExternalLink, Sparkles, Store } from "lucide-react";
+import { Globe, Copy, ExternalLink, Sparkles, Store, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { formatPhone } from "@/lib/masks";
+
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{2,49}$/;
+
+type SlugStatus =
+  | { state: "idle" }
+  | { state: "checking" }
+  | { state: "ok" }
+  | { state: "error"; message: string };
 
 interface CatalogSettingsData {
   available: boolean;
@@ -44,6 +52,7 @@ export default function CatalogSettings() {
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [slugStatus, setSlugStatus] = useState<SlugStatus>({ state: "idle" });
 
   useEffect(() => {
     if (data) {
@@ -53,6 +62,34 @@ export default function CatalogSettings() {
       setWhatsapp(data.catalogWhatsapp ?? "");
     }
   }, [data]);
+
+  // Checa a disponibilidade do endereço enquanto o usuário digita (debounced).
+  useEffect(() => {
+    const savedSlug = data?.catalogSlug ?? "";
+    if (slug === "") { setSlugStatus({ state: "idle" }); return; }
+    // O próprio slug já salvo é sempre válido — nem consulta o servidor.
+    if (slug === savedSlug) { setSlugStatus({ state: "ok" }); return; }
+    if (!SLUG_RE.test(slug)) {
+      setSlugStatus({ state: "error", message: "Use apenas letras minúsculas, números e hífens (3 a 50 caracteres)" });
+      return;
+    }
+
+    let ignore = false;
+    setSlugStatus({ state: "checking" });
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiFetch(`/api/catalog/slug-available?slug=${encodeURIComponent(slug)}`);
+        const body = await res.json();
+        if (ignore) return;
+        if (body.available) setSlugStatus({ state: "ok" });
+        else setSlugStatus({ state: "error", message: body.message || "Endereço indisponível" });
+      } catch {
+        if (!ignore) setSlugStatus({ state: "error", message: "Não foi possível verificar o endereço" });
+      }
+    }, 450);
+
+    return () => { ignore = true; clearTimeout(timer); };
+  }, [slug, data?.catalogSlug]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -78,6 +115,13 @@ export default function CatalogSettings() {
       }
     },
   });
+
+  // Não deixa salvar/publicar com um endereço inválido ou em uso.
+  const canSave =
+    !saveMutation.isPending &&
+    slugStatus.state !== "checking" &&
+    slugStatus.state !== "error" &&
+    (!enabled || slugStatus.state === "ok");
 
   if (isLoading) {
     return (
@@ -146,16 +190,33 @@ export default function CatalogSettings() {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-muted-foreground shrink-0">{window.location.origin}/loja/</span>
               <Input
-                className="flex-1 min-w-40"
+                className={`flex-1 min-w-40 ${slugStatus.state === "error" ? "border-destructive focus-visible:ring-destructive" : slugStatus.state === "ok" ? "border-emerald-500 focus-visible:ring-emerald-500" : ""}`}
                 placeholder="minha-loja"
                 value={slug}
                 onChange={(e) => setSlug(slugify(e.target.value))}
                 data-testid="input-catalog-slug"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Letras minúsculas, números e hífens. Ex.: auto-center-silva
-            </p>
+            {slugStatus.state === "checking" && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5" data-testid="text-slug-status">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Verificando disponibilidade…
+              </p>
+            )}
+            {slugStatus.state === "ok" && slug !== "" && (
+              <p className="text-xs text-emerald-600 flex items-center gap-1.5" data-testid="text-slug-status">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Endereço disponível
+              </p>
+            )}
+            {slugStatus.state === "error" && (
+              <p className="text-xs text-destructive flex items-center gap-1.5" data-testid="text-slug-status">
+                <AlertCircle className="w-3.5 h-3.5" /> {slugStatus.message}
+              </p>
+            )}
+            {slugStatus.state === "idle" && (
+              <p className="text-xs text-muted-foreground">
+                Letras minúsculas, números e hífens. Ex.: auto-center-silva
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -187,11 +248,14 @@ export default function CatalogSettings() {
           <div className="flex items-center gap-2 pt-2">
             <Button
               onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
+              disabled={!canSave}
               data-testid="button-save-catalog"
             >
               {saveMutation.isPending ? "Salvando..." : "Salvar"}
             </Button>
+            {enabled && slug !== "" && slugStatus.state === "error" && (
+              <span className="text-xs text-muted-foreground">Corrija o endereço para publicar.</span>
+            )}
           </div>
         </CardContent>
       </Card>
