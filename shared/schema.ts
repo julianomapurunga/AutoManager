@@ -115,6 +115,10 @@ export const STORE_EXPENSE_CATEGORIES = [
   "Outros",
 ] as const;
 
+/** Categorias de foto do veículo. Externas vêm primeiro (principais para anúncios). */
+export const VEHICLE_IMAGE_CATEGORIES = ["externa", "interna", "placa"] as const;
+export type VehicleImageCategory = (typeof VEHICLE_IMAGE_CATEGORIES)[number];
+
 export const vehicleImages = pgTable("vehicle_images", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id")
@@ -123,6 +127,8 @@ export const vehicleImages = pgTable("vehicle_images", {
   vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: "cascade" }).notNull(),
   fileName: text("file_name").notNull(),
   filePath: text("file_path").notNull(),
+  // Categoria da foto (null nas fotos antigas). Externas são as principais.
+  category: text("category", { enum: VEHICLE_IMAGE_CATEGORIES }),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [index("vehicle_images_vehicle_idx").on(table.vehicleId)]).enableRLS();
 

@@ -6,18 +6,54 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Filter, ShoppingCart } from "lucide-react";
+import { Plus, Search, Filter, ShoppingCart, Camera, Copy, Check } from "lucide-react";
 import { VehicleForm } from "@/components/forms/VehicleForm";
 import { SellVehicleDialog } from "@/components/forms/SellVehicleDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VEHICLE_STATUS } from "@shared/schema";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { QRCodeSVG } from "qrcode.react";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Vehicles() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [sellTarget, setSellTarget] = useState<{ id: number; name: string; price: number } | null>(null);
+  const [photoTarget, setPhotoTarget] = useState<{ id: number; name: string } | null>(null);
+  const [photoLink, setPhotoLink] = useState<{ url: string; expiresInMinutes: number } | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const openPhotoQr = async (vehicle: { id: number; name: string }) => {
+    setPhotoTarget(vehicle);
+    setPhotoLink(null);
+    setCopied(false);
+    setPhotoLoading(true);
+    try {
+      const res = await apiRequest("POST", `/api/vehicles/${vehicle.id}/photo-link`);
+      const { token, expiresInMinutes } = await res.json();
+      setPhotoLink({ url: `${window.location.origin}/enviar-fotos/${token}`, expiresInMinutes });
+    } catch (err: any) {
+      toast({ title: "Não foi possível gerar o QR code", description: err.message, variant: "destructive" });
+      setPhotoTarget(null);
+    } finally {
+      setPhotoLoading(false);
+    }
+  };
+
+  const copyPhotoLink = async () => {
+    if (!photoLink) return;
+    try {
+      await navigator.clipboard.writeText(photoLink.url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: "Não foi possível copiar", variant: "destructive" });
+    }
+  };
 
   const { data: vehicles, isLoading } = useVehicles({
     search,
@@ -156,24 +192,38 @@ export default function Vehicles() {
                     {vehicle.owner?.name || "—"}
                   </TableCell>
                   <TableCell className="text-right">
-                    {vehicle.status !== "Vendido" && (
+                    <div className="flex items-center justify-end gap-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSellTarget({
-                            id: vehicle.id,
-                            name: `${vehicle.brand} ${vehicle.model}`,
-                            price: vehicle.price || 0,
-                          });
+                          openPhotoQr({ id: vehicle.id, name: `${vehicle.brand} ${vehicle.model}` });
                         }}
-                        data-testid={`button-sell-${vehicle.id}`}
+                        data-testid={`button-photos-${vehicle.id}`}
                       >
-                        <ShoppingCart className="w-3 h-3 mr-1" />
-                        Vender
+                        <Camera className="w-3 h-3 mr-1" />
+                        Inserir fotos
                       </Button>
-                    )}
+                      {vehicle.status !== "Vendido" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSellTarget({
+                              id: vehicle.id,
+                              name: `${vehicle.brand} ${vehicle.model}`,
+                              price: vehicle.price || 0,
+                            });
+                          }}
+                          data-testid={`button-sell-${vehicle.id}`}
+                        >
+                          <ShoppingCart className="w-3 h-3 mr-1" />
+                          Vender
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -191,6 +241,36 @@ export default function Vehicles() {
           onOpenChange={(open) => { if (!open) setSellTarget(null); }}
         />
       )}
+
+      <Dialog open={!!photoTarget} onOpenChange={(open) => { if (!open) { setPhotoTarget(null); setPhotoLink(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Inserir fotos — {photoTarget?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-2 text-center">
+            <p className="text-sm text-muted-foreground">
+              Escaneie o QR code com o celular para tirar e enviar as fotos deste veículo.
+            </p>
+            {photoLoading && <p className="text-sm text-muted-foreground py-8">Gerando QR code…</p>}
+            {photoLink && (
+              <>
+                <div className="rounded-lg bg-white p-4">
+                  <QRCodeSVG value={photoLink.url} size={200} level="M" />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  O link vale por {Math.round(photoLink.expiresInMinutes / 60)}h. Depois é só gerar outro.
+                </p>
+                <div className="flex w-full items-center gap-2">
+                  <Input readOnly value={photoLink.url} className="text-xs" onFocus={(e) => e.currentTarget.select()} />
+                  <Button variant="outline" size="icon" onClick={copyPhotoLink} data-testid="button-copy-photo-link">
+                    {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

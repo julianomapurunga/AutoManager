@@ -6,6 +6,7 @@ import {
   type Expense, type InsertExpense,
   type StoreExpense, type InsertStoreExpense,
   type VehicleImage,
+  type VehicleImageCategory,
   type Intermediary, type InsertIntermediary,
   type AuditLog
 } from "@shared/schema";
@@ -298,12 +299,16 @@ export class DatabaseStorage {
   async getVehicleImages(ctx: TenantCtx, vehicleId: number): Promise<VehicleImage[]> {
     return await db.select().from(vehicleImages)
       .where(and(eq(vehicleImages.vehicleId, vehicleId), eq(vehicleImages.organizationId, ctx.organizationId)))
-      .orderBy(desc(vehicleImages.createdAt));
+      // Externas primeiro (principais para anúncios), depois internas e placa.
+      .orderBy(
+        sql`case ${vehicleImages.category} when 'externa' then 0 when 'interna' then 1 when 'placa' then 2 else 3 end`,
+        desc(vehicleImages.createdAt),
+      );
   }
 
-  async createVehicleImage(ctx: TenantCtx, vehicleId: number, fileName: string, filePath: string): Promise<VehicleImage> {
+  async createVehicleImage(ctx: TenantCtx, vehicleId: number, fileName: string, filePath: string, category?: VehicleImageCategory | null): Promise<VehicleImage> {
     const [image] = await db.insert(vehicleImages)
-      .values({ vehicleId, fileName, filePath, organizationId: ctx.organizationId })
+      .values({ vehicleId, fileName, filePath, organizationId: ctx.organizationId, category: category ?? null })
       .returning();
     return image;
   }

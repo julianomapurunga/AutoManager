@@ -5,7 +5,9 @@ import { storage, type TenantCtx } from "../storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { guard, guardAdmin, guardGerente, guardFinanceiro, requireFipeAccess } from "../auth";
-import { validateUploadedImages, isRealImage } from "../security";
+import { validateUploadedImages, isRealImage, rateLimit } from "../security";
+import { signPhotoToken, verifyPhotoToken, PHOTO_TOKEN_TTL_MINUTES } from "../photo-token";
+import { VEHICLE_IMAGE_CATEGORIES, type VehicleImageCategory } from "@shared/schema";
 import { registerAuthRoutes } from "./auth";
 import { registerBillingRoutes } from "./billing";
 import { registerCatalogRoutes } from "./catalog";
@@ -66,6 +68,13 @@ function ctx(req: express.Request): TenantCtx {
     // Marca a auditoria quando um super admin está agindo dentro da loja.
     impersonatorEmail: req.isImpersonating ? req.impersonatorEmail : undefined,
   };
+}
+
+/** Normaliza a categoria de foto recebida do cliente (ou null se ausente/inválida). */
+function parsePhotoCategory(value: unknown): VehicleImageCategory | null {
+  return VEHICLE_IMAGE_CATEGORIES.includes(value as VehicleImageCategory)
+    ? (value as VehicleImageCategory)
+    : null;
 }
 
 function zodError(err: z.ZodError, res: express.Response) {
@@ -398,15 +407,86 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Arquivo inválido: envie apenas imagens reais (jpg, png, gif ou webp)" });
       }
 
+      const category = parsePhotoCategory(req.body?.category);
+
       const results = [];
       for (const file of files) {
         const image = await storage.createVehicleImage(
           ctx(req),
           vehicleId,
           file.originalname,
-          `/uploads/${file.filename}`
+          `/uploads/${file.filename}`,
+          category
         );
         results.push(image);
+      }
+      res.status(201).json(results);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message || "Erro ao enviar imagens" });
+    }
+  });
+
+  // ─── Envio de fotos via QR code (celular) ────────────────────────────────
+  //
+  // Fluxo: o gerente gera um token (QR) para um veículo; quem escaneia abre uma
+  // página pública que só aceita fotos daquele veículo por 2 horas — sem login.
+
+  // Gera o token/QR para um veículo (autenticado). O front monta a URL final.
+  app.post("/api/vehicles/:vehicleId/photo-link", guardGerente(), async (req: express.Request, res: express.Response) => {
+    const vehicleId = Number(req.params.vehicleId);
+    const c = ctx(req);
+    const vehicle = await storage.getVehicle(c, vehicleId);
+    if (!vehicle) return res.status(404).json({ message: "Veículo não encontrado" });
+    const token = await signPhotoToken({ vehicleId, organizationId: c.organizationId });
+    res.json({ token, expiresInMinutes: PHOTO_TOKEN_TTL_MINUTES });
+  });
+
+  // Limite para os endpoints públicos de foto (por IP).
+  const photoPublicLimiter = rateLimit({ windowMs: 60 * 1000, max: 60 });
+
+  // Valida o token e devolve os dados mínimos do veículo (público).
+  app.get("/api/public/photo-upload/:token", photoPublicLimiter, async (req: express.Request, res: express.Response) => {
+    const payload = await verifyPhotoToken(String(req.params.token));
+    if (!payload) return res.status(410).json({ message: "Link inválido ou expirado" });
+    const tokenCtx: TenantCtx = { organizationId: payload.organizationId, userId: "public-photo-upload" };
+    const vehicle = await storage.getVehicle(tokenCtx, payload.vehicleId);
+    if (!vehicle) return res.status(404).json({ message: "Veículo não encontrado" });
+    res.json({
+      vehicle: { brand: vehicle.brand, model: vehicle.model, plate: vehicle.plate },
+      categories: VEHICLE_IMAGE_CATEGORIES,
+      expiresInMinutes: PHOTO_TOKEN_TTL_MINUTES,
+    });
+  });
+
+  // Recebe as fotos (público, escopo travado no token).
+  app.post("/api/public/photo-upload/:token", photoPublicLimiter, upload.array("images", 20), async (req: express.Request, res: express.Response) => {
+    try {
+      const payload = await verifyPhotoToken(String(req.params.token));
+      if (!payload) return res.status(410).json({ message: "Link inválido ou expirado" });
+
+      const category = parsePhotoCategory(req.body?.category);
+      if (!category) return res.status(400).json({ message: "Categoria inválida" });
+
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) return res.status(400).json({ message: "Nenhuma imagem enviada" });
+      if (!validateUploadedImages(files)) {
+        return res.status(400).json({ message: "Arquivo inválido: envie apenas imagens reais (jpg, png, gif ou webp)" });
+      }
+
+      const tokenCtx: TenantCtx = { organizationId: payload.organizationId, userId: "public-photo-upload" };
+      const vehicle = await storage.getVehicle(tokenCtx, payload.vehicleId);
+      if (!vehicle) return res.status(404).json({ message: "Veículo não encontrado" });
+
+      const results = [];
+      for (const file of files) {
+        const image = await storage.createVehicleImage(
+          tokenCtx,
+          payload.vehicleId,
+          file.originalname,
+          `/uploads/${file.filename}`,
+          category,
+        );
+        results.push({ id: image.id, filePath: image.filePath, category: image.category });
       }
       res.status(201).json(results);
     } catch (err: any) {

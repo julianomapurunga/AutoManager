@@ -30,6 +30,7 @@ import PrivacyPage from "@/pages/PrivacyPage";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import { AppFooter } from "@/components/AppFooter";
 import PublicCatalog from "@/pages/PublicCatalog";
+import PhotoUploadPage from "@/pages/PhotoUploadPage";
 import CatalogSettings from "@/pages/CatalogSettings";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
@@ -197,6 +198,9 @@ function AppContent() {
 
   // Catálogo público: acessível sem login
   if (location.startsWith("/loja/")) return <PublicCatalog />;
+
+  // Envio de fotos via QR code (celular): público, escopo travado no token
+  if (location.startsWith("/enviar-fotos/")) return <PhotoUploadPage />;
 
   // Páginas legais: públicas, acessíveis por link direto (inclusive do rodapé)
   if (location === "/termos") return <TermsPage />;
