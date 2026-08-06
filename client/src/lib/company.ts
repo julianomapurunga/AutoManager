@@ -5,6 +5,6 @@ export const COMPANY = {
   cnpj: "66.780.377/0001-19",
   address: "Rua Armando Burlamaqui, 842, Nossa Senhora de Fátima, Parnaíba-PI, CEP 64202-170",
   brand: "iron.tech",
-  site: "https://irontech.dev.br/",
+  site: "https://www.irontech.dev.br/",
   supportEmail: "irontechti@gmail.com",
 } as const;
